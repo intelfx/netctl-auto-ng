@@ -1,0 +1,15 @@
+[Unit]
+Description=Automatic extended netcfg wireless connection
+Before=network.target
+Wants=network.target
+
+[Service]
+ExecStart=/usr/bin/netcfg-wpa_actiond-ng bootup %i
+ExecStop=/usr/bin/netcfg-wpa_actiond-ng halt
+ExecReload=/usr/bin/netcfg-wpa_actiond-ng reconfigure %i
+RemainAfterExit=no
+Type=forking
+PIDFile=/run/wpa_actiond_%i.pid
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,513 @@
+#! /bin/bash
+. /usr/lib/network/network
+. "$SUBR_DIR/8021x"
+. "$SUBR_DIR/rfkill"
+
+AUTOWIFI="/usr/sbin/wpa_actiond"
+ACTION_SCRIPT="/usr/bin/netcfg-wpa_actiond-action-ng"
+WPA_CTRL_PATH="/run/wpa_supplicant"
+CONFIG="/etc/conf.d/netcfg-auto-wireless"
+GLOBAL_CONFIG="/etc/conf.d/netcfg"
+
+check_make_state_dir
+
+HALT_SCRIPT="$STATE_DIR/netcfg-auto-wireless-ng.suspend-script"
+MODE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.mode"
+INTERFACES_FILE="$STATE_DIR/netcfg-auto-wireless-ng.interfaces"
+STATE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.state"
+LOCK_FILE="$STATE_DIR/netcfg-auto-wireless-ng.lock"
+
+function help() {
+	echo << END
+$(basename "$0"): an extended automatic wireless management script.
+
+Usage:
+	$(basename "$0") [OPTIONS] <target> [interface]
+
+Options:
+	-q, --quiet:     Suppress non-error messages.
+	--running:       Require the current state to be "running".
+	--suspended:     Require the current state to be "suspended" or "running".
+
+States:
+	There are three dedicated states of the script/daemon:
+     - running   (scanning is active)
+	 - suspended (scanning is stopped, networks are disconnected)
+	 - halted    (technically same as suspended)
+
+	Their purpose is to allow commands to the script to be skipped
+	automatically in a conditional manner (using options described above).
+
+Targets:
+	A target is the desired operation mode of the script.
+	It may be one of the following:
+
+	continuous:  Scan for networks endlessly, connecting to first found one.
+	once:        Scan for networks once (for a timeout), connecting to first
+	             found network and exiting as soon as the connection gets lost.
+
+	halt:        Stop the scanner daemon and disconnect from any network.
+	suspend:     Same as halt, but go to state "suspended".
+
+	last:        Go to the last active mode (either "continuous" or "once").
+	resume:      Same as last, but require the state to be "suspended".
+	             This target is made for readability.
+
+	reconfigure: Re-read network profiles.
+
+	status:      Print (pretty-print, if on terminal) the connection info.
+	status wpa:  Same as "status", but also print information from
+	             wpa_supplicant (if connected).
+				 If field names are given after "wpa", print them only
+				 (otherwise, print all fields).
+
+	bootup:      Auto-configure the daemon in a mode acceptable for a
+	             system boot sequence.
+	power:       Auto-configure the daemon in a mode acceptable for a
+	             power source transition (battery <-> AC).
+
+	For two latest targets, see the configuration file.
+
+Interface specification:
+	A single network interface may or may not be specified.
+
+	If specified, it overrides any other setting.
+	Otherwise, the interface name is read from the following places:
+	- /run/network/netcfg-auto-wireless-ng.interfaces
+	- /etc/conf.d/netcfg (\$WIRELESS_INTERFACE)
+
+Exit codes:
+	0: done or nothing to do
+	1: error while processing options or configuration files
+	2: unsufficient privileges or locking failed
+	3: interface init failed
+	4: timeout/abort while waiting for an established connection ("once" mode)
+
+Configuration files:
+	Native configuration file:  /etc/conf.d/netcfg-auto-wireless
+	Netcfg configuration file:  /etc/conf.d/netcfg
+	Network profiles directory: /etc/network.d
+END
+}
+
+# Locking
+#
+LOCKTIMEOUT=10
+EXIT_SIGNALS=(TERM HUP INT QUIT)
+
+function release_lock() {
+	report_debug "Dropping lock $LOCKFILE"
+	exec 4<&-
+}
+
+function do_trap() {
+	report_debug "Installing termination handlers (signals ${EXIT_SIGNALS[*]}) to function $1"
+	trap "$1" "${EXIT_SIGNALS[@]}"
+}
+
+function do_lock() {
+	report_debug "Locking file $LOCKFILE"
+	touch "$LOCKFILE"
+	exec 4<"$LOCKFILE"
+	flock -x -w "$LOCKTIMEOUT" 4
+	trap release_lock 0
+	return "$?"
+}
+
+# Status reporting primitives
+#
+align_column=25
+[ -t 1 ] && align_separator="$(tput hpa $align_column)"
+
+function quit() {
+	if (( $1 )); then
+		report_err "Quit: $2"
+	else
+		report_notice "Quit: $2"
+	fi
+	exit $1
+}
+
+function report_aligned() {
+	[ -n "$QUIET" ] && return
+
+	local sep="$align_separator"
+	local left_margin="${3:-0}"
+	local key_len="$(( ${#1} + $left_margin ))"
+
+	[ -z "$sep" ] && sep="$( printf "%$(( $align_column-$key_len-2 ))s" )"
+	echo -n "$( printf "%${left_margin}s" )"
+	report_notice "${1}: ${sep}${2}"
+}
+
+# Helpers for reporting status
+#
+function ignore_req() {
+	quit 0 "ignoring request (requested at least $REQ_STATE, now $STATE)"
+}
+
+function noop() {
+	quit 0 "nothing to do (asked to $REQ_MODE, now $STATE)"
+}
+
+function couldnot() {
+	quit 1 "could not $1 in order to $REQ_MODE"
+}
+
+function old_mode() {
+	[ -n "$MODE" ] || couldnot "read previous mode"
+	REQ_MODE="$MODE"
+}
+
+# Main subroutines
+#
+function status() {
+	report_aligned "Interface used"      "$INTERFACE"
+	report_aligned "Auto-wireless state" "$STATE"
+	[ "$STATE" = "halted" ] && return
+	report_aligned "Auto-wireless mode"  "$MODE"
+	[ "$STATE" = "running" ] || return
+	[ -e "$STATE_DIR/interfaces/$INTERFACE" ] || return
+	report_aligned "Profile running"     "$(< "$STATE_DIR/interfaces/$INTERFACE")"
+
+	if [ "$1" = "wpa" ]; then
+		shift
+		declare -A wpa_data
+
+		while IFS='=' read key value; do
+			wpa_data["$key"]="$value"
+		done < <(wpa_cli -p "$WPA_CTRL_PATH" -i "$INTERFACE" status)
+
+		(( $# )) || set -- "${!wpa_data[@]}"
+
+		report_notice "WPA information:"
+		for key in "$@"; do
+			report_aligned "${key}" "${wpa_data["$key"]}" 4
+		done
+	fi
+}
+
+function need_exec_from_config() {
+	local DO_CMD=$(eval echo '$NAW_DO_CMD_'"$1")
+	report_debug "Checking requirement of execution of command $1: variable name is NAW_DO_CMD_$1, result is $DO_CMD"
+	if (( "${DO_CMD:-0}" )); then
+		return 0
+	else
+		return 1
+	fi
+}
+
+function get_cmd_from_config() {
+	local CMD=$(eval echo '$NAW_CMD_'"$1")
+	report_debug "Querying command $1: variable name is NAW_CMD_$1, result is $CMD"
+	[ -n "$2" ] && CMD="$CMD $2"
+	echo "$CMD"
+}
+
+function exec_from_config() {
+	if need_exec_from_config "$1"; then
+		local CMD="$(get_cmd_from_config "$@") $INTERFACE"
+		report_debug "Executing self via reparse: $CMD"
+		parse_parameters $CMD
+	else
+		report_debug "Execution of command $1 disabled by config"
+		parse_parameters noop
+		return 0
+	fi
+}
+
+function stop() {
+	report_debug "Stopping $INTERFACE at $WPA_CTRL_PATH"
+
+	# Load interface specific config
+	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
+
+	kill $(< "$PIDFILE")
+	netcfg -D "$INTERFACE"
+	[ "$1" != "nowpa" ] && stop_wpa "$INTERFACE"
+}
+
+function prepare_config() {
+	report_debug "Building wpa_supplicant configuration for $INTERFACE"
+	WPA_CONF="$(make_wpa_config_file $INTERFACE)"
+
+	if [[ -n "${AUTO_PROFILES}" ]]; then
+		for prof in "${AUTO_PROFILES[@]}"; do echo "$prof"; done
+	else
+		list_profiles
+	fi | while read profile; do
+		(
+		load_profile "$profile"
+
+		[[ "$CONNECTION" != "wireless" ]] && exit 1
+		# Exclude wpa-config, the wpa_conf is 'complete' and doesn't fit in this scheme
+		[[ "$SECURITY" == "wpa-config" ]] && exit 1
+
+		SECURITY="${SECURITY:-none}"
+		printf "network={\n%s\nid_str=\"%s\"\n}\n" "$(make_wpa_config)" "$profile" >> $WPA_CONF
+		)
+	done
+}
+
+function reconfigure() {
+	report_debug "Reconfiguring $INTERFACE"
+
+	# Load interface specific config
+	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
+
+	prepare_config
+	wpa_reconfigure "$INTERFACE"
+}
+
+function start() {
+	report_debug "Starting $INTERFACE"
+
+	# Load interface specific config
+	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
+
+	netcfg -D "$INTERFACE"
+
+	# Kill any existing wpa_supplicant on this interface
+	stop_wpa "$INTERFACE"
+
+	# Do PRE_UP
+	( eval $PRE_UP ) || { quit 3 "PRE_UP failed"; }
+	enable_rf "$INTERFACE" "$RFKILL" "$RFKILL_NAME" || { quit 3 "rfkill \"radio on\" failed"; }
+
+	prepare_config
+
+	WPA_DRIVER="${WPA_DRIVER:-nl80211,wext}"
+	WPA_OPTS="-W $WPA_OPTS"
+
+	start_wpa "$INTERFACE" "$WPA_CONF" "$WPA_DRIVER" "$WPA_OPTS" || { quit 3 "failed to start wpa_supplicant"; }
+	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "${PIDFILE}" -a "$ACTION_SCRIPT" || { quit 3 "failed to start wpa_actiond"; }
+}
+
+# Power management functions
+#
+# By default, if no on_ac_power exists or its execution fails, think like we are on AC power (standalone PC)
+function is_on_ac_power() {
+	local HELPER
+	HELPER=$(which on_ac_power 2>/dev/null)
+	if [ -x "$HELPER" ]; then
+		"$HELPER"
+		case "$?" in
+			0)
+				report_debug "On AC power"
+				return 0
+				;;
+			1)
+				report_debug "_Not_ on AC power"
+				return 1
+				;;
+			*)
+				report_err "Failed to execute \"on_ac_power\"; defaulting to AC power"
+				return 0
+				;;
+		esac
+	else
+		report_err "Could not find \"on_ac_power\"; defaulting to AC power"
+		return 0
+	fi
+}
+
+function do_bootup() {
+	local RUN_CMD
+	is_on_ac_power && RUN_CMD="BOOT_AC" || RUN_CMD="BOOT_BATTERY"
+	exec_from_config "$RUN_CMD"
+}
+
+function do_power() {
+	local RUN_CMD
+	is_on_ac_power && RUN_CMD="SW_AC" || RUN_CMD="SW_BATTERY"
+	exec_from_config "$RUN_CMD"
+}
+
+function parse_shortmode() {
+	case $1 in
+		c|continuous)
+			REQ_MODE=continuous
+			;;
+		o|once)
+			REQ_MODE=once
+			;;
+		h|halt)
+			REQ_MODE=halt
+			;;
+		su|suspend)
+			REQ_MODE=suspend
+			;;
+		res|resume)
+			REQ_MODE=resume
+			;;
+		rec|reconfigure)
+			REQ_MODE=reconfigure
+			;;
+		n|noop)
+			REQ_MODE=noop
+			;;
+		b|bootup)
+			do_bootup
+			;;
+		p|power)
+			do_power
+			;;
+		st|status)
+			status "$@"
+			exit 0
+			;;
+		*)
+			return 1
+			;;
+	esac
+}
+
+function parse_parameters() {
+	report_debug "Parsing parameters: $*"
+	for parameter; do
+		case $parameter in
+			--suspended)
+				REQ_STATE="suspended"
+				;;
+			--running)
+				REQ_STATE="running"
+				;;
+			--quiet|-q)
+				QUIET=1
+				;;
+			--)
+				;;
+			*)
+				if ! parse_shortmode "$parameter"; then
+					if is_interface "$parameter"; then
+						INTERFACE="$parameter"
+					else
+						report_err "Given interface $parameter does not exist";
+					fi
+				fi
+				;;
+			esac
+	done
+	report_debug "Completed parsing parameters: $*"
+}
+
+# Main execution flow
+#
+
+# Parse options
+OPTS=$( getopt -n "$0" -l "suspended,running,quiet" -o "q" -- "$@" )
+(( $? )) && quit 1 "incorrect options"
+eval set -- $OPTS
+
+# Configs and privileges and locking
+[ "$UID" != "0" ] && quit 2 "shall be run as root"
+do_lock || quit 2 "could not acquire the lock"
+[ -r "$CONFIG" ] && source "$CONFIG" || quit 1 "cannot read the configuration file: $CONFIG"
+[ -r "$GLOBAL_CONFIG" ] && source "$GLOBAL_CONFIG"
+
+# Read variables
+[ -r "$MODE_FILE" ] && MODE=$(< "$MODE_FILE")
+[ -r "$STATE_FILE" ] && STATE=$(< "$STATE_FILE") || STATE="halted"
+REQ_STATE="halted"
+REQ_MODE=""
+
+if [ -r "$INTERFACES_FILE" ]; then
+	INTERFACE=$(< "$INTERFACES_FILE")
+	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
+else
+	INTERFACE=$WIRELESS_INTERFACE
+fi
+
+# Parse parameters
+parse_parameters $@
+
+# Verify that all data is given
+[ -n "$REQ_MODE" ] || exec_from_config DEFAULT
+[ -n "$REQ_MODE" ] || quit 1 "target mode not given"
+[ -n "$INTERFACE" ] || quit 1 "interface not given"
+
+PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
+
+report_debug "Using interface: $INTERFACE"
+report_debug "Using mode: $REQ_MODE"
+report_debug "Using min-state: $REQ_STATE"
+report_debug "Existing mode: $MODE"
+report_debug "Existing state: $STATE"
+
+# Set default requirements based on special targets
+#
+case "$REQ_MODE" in
+	reconfigure)
+		REQ_STATE="running"
+		old_mode
+		;;
+	resume)
+		REQ_STATE="suspended"
+		old_mode
+		;;
+	last)
+		old_mode
+		;;
+	suspend)
+		REQ_STATE="running"
+		;;
+	halt)
+		[ "$STATE" = "halted" ] && noop
+		;;
+	noop)
+		noop
+		;;
+esac
+
+# Check for requirements
+#
+case "$REQ_STATE" in
+	running)
+		[ "$STATE" = "halted" -o "$STATE" = "suspended" ] && ignore_req
+		;;
+	suspended)
+		[ "$STATE" = "halted" ] && ignore_req
+		;;
+esac
+
+rm -f "$HALT_SCRIPT"
+echo "$INTERFACE" > "$INTERFACES_FILE"
+
+case "$REQ_MODE" in
+	halt)
+		stop
+		echo "halted" > "$STATE_FILE"
+		quit 0 "successfully halted"
+		;;
+	suspend)
+		stop
+		echo "suspended" > "$STATE_FILE"
+		quit 0 "successfully suspended"
+		;;
+	continuous|once)
+		[ "$STATE" != "running" ] && ( release_lock; start; ) || reconfigure
+		echo "running" > "$STATE_FILE"
+		echo "$REQ_MODE" > "$MODE_FILE"
+		if [ "$REQ_MODE" = "once" ]; then
+#			(
+			function onexit() {
+				stop $1
+				echo "${NAW_STATE_ONCE_FAULT:-suspended}" > "$STATE_FILE"
+				quit 4 "waiting for connection failed"
+			}
+			do_trap onexit
+			report_debug "Entering once mode: waiting for connection on $INTERFACE for $NAW_ONCE_TIMEOUT seconds"
+			if wpa_check "$INTERFACE" "$NAW_ONCE_TIMEOUT"; then
+				need_exec_from_config ONCE_LOSS && echo "$0 $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
+				quit 0 "verified in $REQ_MODE mode"
+			else
+				onexit nowpa # pass "nowpa" to stop since wpa_check stops wpa by itself
+			fi
+#			) &
+		fi
+		quit 0 "running $REQ_MODE"
+		;;
+	*)
+		quit 1 "unsupported target \"$REQ_MODE\""
+		;;
+esac

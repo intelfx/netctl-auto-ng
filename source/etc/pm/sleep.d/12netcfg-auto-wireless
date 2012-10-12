@@ -1,0 +1,17 @@
+#!/bin/bash
+
+AUTOWIRELESS_FILE="/usr/bin/netcfg-auto-wireless"
+[ -x "$AUTOWIRELESS_FILE" ] || exit $NA
+
+case "$1" in
+	hibernate|suspend)
+		"$AUTOWIRELESS_FILE" suspend
+		;;
+	thaw|resume)
+		"$AUTOWIRELESS_FILE" --suspended resume
+		;;
+	*)
+		exit $NA
+		;;
+esac
+exit $?
