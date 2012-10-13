@@ -102,7 +102,7 @@ LOCKTIMEOUT=10
 EXIT_SIGNALS=(TERM HUP INT QUIT)
 
 function release_lock() {
-	report_debug "Dropping lock $LOCKFILE"
+	report_debug "Dropping lock $LOCK_FILE"
 	exec 4<&-
 }
 
@@ -112,9 +112,9 @@ function do_trap() {
 }
 
 function do_lock() {
-	report_debug "Locking file $LOCKFILE"
-	touch "$LOCKFILE"
-	exec 4<"$LOCKFILE"
+	report_debug "Locking file $LOCK_FILE"
+	touch "$LOCK_FILE"
+	exec 4<"$LOCK_FILE"
 	flock -x -w "$LOCKTIMEOUT" 4
 	trap release_lock 0
 	return "$?"
