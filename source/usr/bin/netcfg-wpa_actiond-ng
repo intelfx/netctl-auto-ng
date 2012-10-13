@@ -3,6 +3,8 @@
 . "$SUBR_DIR/8021x"
 . "$SUBR_DIR/rfkill"
 
+NAW_VERSION="unspecified"
+
 AUTOWIFI="/usr/sbin/wpa_actiond"
 ACTION_SCRIPT="/usr/bin/netcfg-wpa_actiond-action-ng"
 WPA_CTRL_PATH="/run/wpa_supplicant"
@@ -16,6 +18,10 @@ MODE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.mode"
 INTERFACES_FILE="$STATE_DIR/netcfg-auto-wireless-ng.interfaces"
 STATE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.state"
 LOCK_FILE="$STATE_DIR/netcfg-auto-wireless-ng.lock"
+
+function version() {
+	echo "netcfg-auto-wireless $NAW_VERSION"
+}
 
 function usage() {
 	cat << END
@@ -380,6 +386,10 @@ function parse_parameters() {
 				usage
 				exit 0
 				;;
+			--version)
+				version
+				exit 0
+				;;
 			*)
 				if ! parse_shortmode "$parameter"; then
 					if is_interface "$parameter"; then
@@ -401,7 +411,7 @@ function parse_parameters() {
 #
 
 # Parse options
-OPTS=$( getopt -n "$0" -l "suspended,running,quiet" -o "q" -- "$@" )
+OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version" -o "q" -- "$@" )
 (( $? )) && exit 1
 eval set -- $OPTS
 
