@@ -17,8 +17,8 @@ INTERFACES_FILE="$STATE_DIR/netcfg-auto-wireless-ng.interfaces"
 STATE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.state"
 LOCK_FILE="$STATE_DIR/netcfg-auto-wireless-ng.lock"
 
-function help() {
-	echo << END
+function usage() {
+	cat << END
 $(basename "$0"): an extended automatic wireless management script.
 
 Usage:
@@ -31,7 +31,7 @@ Options:
 
 States:
 	There are three dedicated states of the script/daemon:
-     - running   (scanning is active)
+	 - running   (scanning is active)
 	 - suspended (scanning is stopped, networks are disconnected)
 	 - halted    (technically same as suspended)
 
@@ -377,12 +377,19 @@ function parse_parameters() {
 				;;
 			--)
 				;;
+			help|--help)
+				usage
+				exit 0
+				;;
 			*)
 				if ! parse_shortmode "$parameter"; then
 					if is_interface "$parameter"; then
 						INTERFACE="$parameter"
 					else
 						report_err "Given interface $parameter does not exist";
+						echo ""
+						usage
+						exit 1
 					fi
 				fi
 				;;
