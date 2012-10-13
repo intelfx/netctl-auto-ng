@@ -10,20 +10,10 @@ VERSION_VAR="NAW_VERSION"
 
 echo "==== Installing script version $TAG" >&2
 
-cd source
-while read file; do
-	echo "- $file" >&2
-	rm -f "$DESTDIR/$file"
-	install -D "$file" "$DESTDIR/$file"
-	sed -re "s|^${VERSION_VAR}=.*$|${VERSION_VAR}=\"${TAG}\"|" -i "$DESTDIR/$file"
-done < <( find . -type f )
+cp -afuT source "$DESTDIR"
 
 while read file; do
-	dest="$(readlink $file)"
-	echo "- $file (link to $dest)" >&2
-	rm -f "$DESTDIR/$file"
-	ln -s "$dest" "$DESTDIR/$file"
-done < <( find . -type l )
-cd ..
+	sed -re "s|^${VERSION_VAR}=.*$|${VERSION_VAR}=\"${TAG}\"|" -i "$file"
+done < <( find "$DESTDIR" -type f )
 
 echo "==== Installation done" >&2
