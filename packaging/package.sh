@@ -1,10 +1,10 @@
 #!/bin/bash
 
-[[ "$DESTDIR" ]] || { echo "DESTDIR unset, exiting"; exit 1; }
-DESTDIR="$(realpath $DESTDIR)"
-
 [[ "$1" ]] || { echo "First parameter (source root) unset, exiting"; exit 1; }
 ROOTDIR="$(realpath $1)"
+
+[[ "$DESTDIR" ]] || DESTDIR="$ROOTDIR/packaging/output"
+DESTDIR="$(realpath $DESTDIR)"
 
 TAG="$(git describe)"
 VERSION_VAR="NAW_VERSION"
