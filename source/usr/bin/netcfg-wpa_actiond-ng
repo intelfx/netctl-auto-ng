@@ -121,9 +121,9 @@ align_column=25
 
 function quit() {
 	if (( $1 )); then
-		report_err "Quit: $2"
+		report_fail "$2"
 	else
-		report_notice "Quit: $2"
+		report_notice "$2"
 	fi
 	exit $1
 }
@@ -143,15 +143,15 @@ function report_aligned() {
 # Helpers for reporting status
 #
 function ignore_req() {
-	quit 0 "ignoring request (requested at least $REQ_STATE, now $STATE)"
+	quit 0 "Ignoring request (requested at least $REQ_STATE, now $STATE)"
 }
 
 function noop() {
-	quit 0 "nothing to do (asked to $REQ_MODE, now $STATE)"
+	quit 0 "Nothing to do (asked to $REQ_MODE, now $STATE)"
 }
 
 function couldnot() {
-	quit 1 "could not $1 in order to $REQ_MODE"
+	quit 1 "Could not $1 in order to $REQ_MODE"
 }
 
 function old_mode() {
@@ -272,15 +272,15 @@ function start() {
 
 	# Do PRE_UP
 	( eval $PRE_UP ) || { quit 3 "PRE_UP failed"; }
-	enable_rf "$INTERFACE" "$RFKILL" "$RFKILL_NAME" || { quit 3 "rfkill \"radio on\" failed"; }
+	enable_rf "$INTERFACE" "$RFKILL" "$RFKILL_NAME" || { quit 3 "Failed to enable radio (rfkill)"; }
 
 	prepare_config
 
 	WPA_DRIVER="${WPA_DRIVER:-nl80211,wext}"
 	WPA_OPTS="-W $WPA_OPTS"
 
-	start_wpa "$INTERFACE" "$WPA_CONF" "$WPA_DRIVER" "$WPA_OPTS" || { quit 3 "failed to start wpa_supplicant"; }
-	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "${PIDFILE}" -a "$ACTION_SCRIPT" || { quit 3 "failed to start wpa_actiond"; }
+	start_wpa "$INTERFACE" "$WPA_CONF" "$WPA_DRIVER" "$WPA_OPTS" || { quit 3 "Failed to start wpa_supplicant"; }
+	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "${PIDFILE}" -a "$ACTION_SCRIPT" || { quit 3 "Failed to start wpa_actiond"; }
 }
 
 # Power management functions
@@ -386,7 +386,7 @@ function parse_parameters() {
 					if is_interface "$parameter"; then
 						INTERFACE="$parameter"
 					else
-						report_err "Given interface $parameter does not exist";
+						report_fail "\"$parameter\" is neither an existing interface nor a known target";
 						echo ""
 						usage
 						exit 1
@@ -403,13 +403,11 @@ function parse_parameters() {
 
 # Parse options
 OPTS=$( getopt -n "$0" -l "suspended,running,quiet" -o "q" -- "$@" )
-(( $? )) && quit 1 "incorrect options"
+(( $? )) && exit 1
 eval set -- $OPTS
 
-# Configs and privileges and locking
-[ "$UID" != "0" ] && quit 2 "shall be run as root"
-do_lock || quit 2 "could not acquire the lock"
-[ -r "$CONFIG" ] && source "$CONFIG" || quit 1 "cannot read the configuration file: $CONFIG"
+# Configs
+[ -r "$CONFIG" ] && source "$CONFIG" || report_err "cannot read the configuration file: $CONFIG"
 [ -r "$GLOBAL_CONFIG" ] && source "$GLOBAL_CONFIG"
 
 # Read variables
@@ -418,20 +416,23 @@ do_lock || quit 2 "could not acquire the lock"
 REQ_STATE="halted"
 REQ_MODE=""
 
-if [ -r "$INTERFACES_FILE" ]; then
-	INTERFACE=$(< "$INTERFACES_FILE")
-	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
-else
-	INTERFACE=$WIRELESS_INTERFACE
-fi
-
 # Parse parameters
 parse_parameters $@
 
+if [ -z "$INTERFACE" ]; then
+	[ -r "$INTERFACES_FILE" ] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
+
+	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
+fi
+
+# Privileges and locking
+[ "$UID" != "0" ] && quit 2 "Shall be run as root"
+do_lock || quit 2 "Could not acquire the lock"
+
 # Verify that all data is given
 [ -n "$REQ_MODE" ] || exec_from_config DEFAULT
-[ -n "$REQ_MODE" ] || quit 1 "target mode not given"
-[ -n "$INTERFACE" ] || quit 1 "interface not given"
+[ -n "$REQ_MODE" ] || quit 1 "Target mode not given"
+[ -n "$INTERFACE" ] || quit 1 "Interface not given"
 
 PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
 
@@ -484,12 +485,12 @@ case "$REQ_MODE" in
 	halt)
 		stop
 		echo "halted" > "$STATE_FILE"
-		quit 0 "successfully halted"
+		quit 0 "Successfully halted"
 		;;
 	suspend)
 		stop
 		echo "suspended" > "$STATE_FILE"
-		quit 0 "successfully suspended"
+		quit 0 "Successfully suspended"
 		;;
 	continuous|once)
 		[ "$STATE" != "running" ] && ( release_lock; start; ) || reconfigure
@@ -500,21 +501,21 @@ case "$REQ_MODE" in
 			function onexit() {
 				stop $1
 				echo "${NAW_STATE_ONCE_FAULT:-suspended}" > "$STATE_FILE"
-				quit 4 "waiting for connection failed"
+				quit 4 "Failed waiting for a connection"
 			}
 			do_trap onexit
 			report_debug "Entering once mode: waiting for connection on $INTERFACE for $NAW_ONCE_TIMEOUT seconds"
 			if wpa_check "$INTERFACE" "$NAW_ONCE_TIMEOUT"; then
 				need_exec_from_config ONCE_LOSS && echo "$0 $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
-				quit 0 "verified in $REQ_MODE mode"
+				quit 0 "Verified in $REQ_MODE mode"
 			else
 				onexit nowpa # pass "nowpa" to stop since wpa_check stops wpa by itself
 			fi
 #			) &
 		fi
-		quit 0 "running $REQ_MODE"
+		quit 0 "Running $REQ_MODE"
 		;;
 	*)
-		quit 1 "unsupported target \"$REQ_MODE\""
+		quit 1 "Unsupported target \"$REQ_MODE\""
 		;;
 esac
