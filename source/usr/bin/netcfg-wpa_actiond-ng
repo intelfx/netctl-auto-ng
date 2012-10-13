@@ -353,8 +353,7 @@ function parse_shortmode() {
 			do_power
 			;;
 		st|status)
-			status "$@"
-			exit 0
+			REQ_MODE=status
 			;;
 		*)
 			return 1
@@ -438,7 +437,7 @@ report_debug "Using min-state: $REQ_STATE"
 report_debug "Existing mode: $MODE"
 report_debug "Existing state: $STATE"
 
-# Set default requirements based on special targets
+# Set requirements and perform actions for special targets
 #
 case "$REQ_MODE" in
 	reconfigure)
@@ -460,6 +459,10 @@ case "$REQ_MODE" in
 		;;
 	noop)
 		noop
+		;;
+	status)
+		status
+		exit 0
 		;;
 esac
 
