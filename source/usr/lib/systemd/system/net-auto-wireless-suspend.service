@@ -1,0 +1,10 @@
+[Unit]
+Description=Suspend netcfg-auto-wireless upon sleep
+PartOf=sleep.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/netcfg-auto-wireless suspend
+ExecStop=/usr/bin/netcfg-auto-wireless resume
+KillMode=none
