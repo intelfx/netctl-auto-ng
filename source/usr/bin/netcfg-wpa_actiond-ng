@@ -425,10 +425,6 @@ if [ -z "$INTERFACE" ]; then
 	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
 fi
 
-# Privileges and locking
-[ "$UID" != "0" ] && quit 2 "Shall be run as root"
-do_lock || quit 2 "Could not acquire the lock"
-
 # Verify that all data is given
 [ -n "$REQ_MODE" ] || exec_from_config DEFAULT
 [ -n "$REQ_MODE" ] || quit 1 "Target mode not given"
@@ -477,6 +473,10 @@ case "$REQ_STATE" in
 		[ "$STATE" = "halted" ] && ignore_req
 		;;
 esac
+
+# Privileges and locking
+[ "$UID" != "0" ] && quit 2 "Shall be run as root"
+do_lock || quit 2 "Could not acquire the lock"
 
 rm -f "$HALT_SCRIPT"
 echo "$INTERFACE" > "$INTERFACES_FILE"
