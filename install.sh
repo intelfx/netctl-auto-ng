@@ -1,7 +1,9 @@
 #!/bin/bash
 
 DESTDIR="$(realpath $DESTDIR)"
-TAG="$(git describe)"
+[[ "$DESTDIR" ]] || { echo "DESTDIR unset, exiting"; exit 1; }
+
+TAG="${1:-$(git describe)}"
 VERSION_VAR="NAW_VERSION"
 
 [[ -z "$TAG" ]] && { TAG="unspecified"; }
