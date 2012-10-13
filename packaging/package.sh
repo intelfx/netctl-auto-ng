@@ -1,7 +1,10 @@
 #!/bin/bash
 
-DESTDIR="$(realpath $DESTDIR)"
 [[ "$DESTDIR" ]] || { echo "DESTDIR unset, exiting"; exit 1; }
+DESTDIR="$(realpath $DESTDIR)"
+
+[[ "$1" ]] || { echo "First parameter (source root) unset, exiting"; exit 1; }
+ROOTDIR="$(realpath $1)"
 
 TAG="$(git describe)"
 VERSION_VAR="NAW_VERSION"
@@ -15,7 +18,8 @@ echo "==== Packaging script version $TAG" >&2
 
 rm -rf "$DESTDIR"
 install -Dm644 PKGBUILD "$DESTDIR/PKGBUILD"
-tar -cf "$DESTDIR/$NAME.tar" --exclude-vcs --exclude-backups --exclude=packaging --transform "s|^|$NAME/|" ../*
+BASENAME="$(basename "$ROOTDIR")"
+tar -cf "$DESTDIR/$NAME.tar" --exclude-vcs --exclude-backups --exclude=packaging --transform "s|^$BASENAME|$NAME/|" -C "$ROOTDIR/.." "$BASENAME"
 xz -9e "$DESTDIR/$NAME.tar"
 MD5=$(md5sum -b "$DESTDIR/$NAME.tar"* | cut -d' ' -f1)
 sed -r -e "s|\%$VERSION_VAR\%|$VERSION|" -e "s|\%$MD5_VAR\%|$MD5|" -i "$DESTDIR/PKGBUILD"
