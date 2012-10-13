@@ -19,7 +19,7 @@ LOCK_FILE="$STATE_DIR/netcfg-auto-wireless-ng.lock"
 
 function usage() {
 	cat << END
-$(basename "$0"): an extended automatic wireless management script.
+netcfg-auto-wireless: An extended automatic wireless management script.
 
 Usage:
 	$(basename "$0") [OPTIONS] <target> [interface]
