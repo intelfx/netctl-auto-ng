@@ -3,7 +3,7 @@
 . "$SUBR_DIR/8021x"
 . "$SUBR_DIR/rfkill"
 
-NAW_VERSION="unspecified"
+NAW_VERSION="0.2.0"
 
 AUTOWIFI="/usr/sbin/wpa_actiond"
 ACTION_SCRIPT="/usr/bin/netcfg-wpa_actiond-action-ng"
@@ -384,11 +384,11 @@ function parse_parameters() {
 				;;
 			help|--help)
 				usage
-				exit 0
+				return 1
 				;;
 			--version)
 				version
-				exit 0
+				return 1
 				;;
 			*)
 				if ! parse_shortmode "$parameter"; then
@@ -398,13 +398,14 @@ function parse_parameters() {
 						report_fail "\"$parameter\" is neither an existing interface nor a known target";
 						echo ""
 						usage
-						exit 1
+						return 1
 					fi
 				fi
 				;;
 			esac
 	done
 	report_debug "Completed parsing parameters: $*"
+	return 0
 }
 
 # Main execution flow
@@ -426,7 +427,7 @@ REQ_STATE="halted"
 REQ_MODE=""
 
 # Parse parameters
-parse_parameters $@
+parse_parameters $@ || exit 1
 
 if [ -z "$INTERFACE" ]; then
 	[ -r "$INTERFACES_FILE" ] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
