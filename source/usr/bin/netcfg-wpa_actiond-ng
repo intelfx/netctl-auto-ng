@@ -228,9 +228,12 @@ function stop() {
 	# Load interface specific config
 	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
 
-	kill $(< "$PIDFILE")
 	netcfg -D "$INTERFACE"
-	[ "$1" != "nowpa" ] && stop_wpa "$INTERFACE"
+	timeout_wait 1 '[[ ! -f "$PIDFILE" ]]' || kill $(< "$PIDFILE")
+	stop_wpa "$INTERFACE"
+	if [[ "$RFKILL" == "soft" ]]; then
+		set_rf_state "$INTERFACE" disabled "$RFKILL_NAME"
+	fi
 }
 
 function prepare_config() {
@@ -513,7 +516,7 @@ case "$REQ_MODE" in
 		if [ "$REQ_MODE" = "once" ]; then
 #			(
 			function onexit() {
-				stop $1
+				stop
 				echo "${NAW_STATE_ONCE_FAULT:-suspended}" > "$STATE_FILE"
 				quit 4 "Failed waiting for a connection"
 			}
@@ -523,7 +526,7 @@ case "$REQ_MODE" in
 				need_exec_from_config ONCE_LOSS && echo "$0 $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
 				quit 0 "Verified in $REQ_MODE mode"
 			else
-				onexit nowpa # pass "nowpa" to stop since wpa_check stops wpa by itself
+				onexit
 			fi
 #			) &
 		fi
