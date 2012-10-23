@@ -13,51 +13,51 @@ MODE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.mode"
 [ -r "$MODE_FILE" ] && MODE=$(< "$MODE_FILE")
 
 case $action in
-    CONNECT)
-        if [[ -z $profile ]]; then
-            # Load interface specific config
-            [[ -f "$IFACE_DIR/$interface" ]] && source "$IFACE_DIR/$interface"
-            dhcpcd -qL -t "${DHCP_TIMEOUT:-10}" -K $DHCP_OPTIONS "$interface"
-            exit $?
-        fi
-        if ! DHCPCD_INTERNAL_OPTIONS="-K" $CONN_DIR/ethernet up "$profile"; then
-            "$CONN_DIR/$ethernet" down "$profile"
-            exit 1
-        fi
-        if ! ( eval $POST_UP ); then    # JP: sandbox the eval
-            # failing POST_UP will take interface down
-            "$CONN_DIR/$ethernet" down "$profile"
-            exit 1
-        fi
-        set_profile up "$profile"
-        ;;
-    DISCONNECT)
-        if [[ -z $profile ]]; then
-            dhcpcd -k "$interface"
-            exit $?
-        fi
-        if ! ( eval $PRE_DOWN ); then   # JP: sandbox the eval
-            exit 1
-        fi
-        if ! "$CONN_DIR/ethernet" down "$profile"; then
-            exit 1
-        fi
-        if ! ( eval $POST_DOWN ); then  # JP: sandbox the eval
-            exit 1
-        fi
-        set_profile down "$profile"
+	CONNECT)
+		if [[ -z $profile ]]; then
+			# Load interface specific config
+			[[ -f "$IFACE_DIR/$interface" ]] && source "$IFACE_DIR/$interface"
+			dhcpcd -qL -t "${DHCP_TIMEOUT:-10}" -K $DHCP_OPTIONS "$interface"
+			exit $?
+		fi
+		if ! DHCPCD_INTERNAL_OPTIONS="-K" $CONN_DIR/ethernet up "$profile"; then
+			"$CONN_DIR/$ethernet" down "$profile"
+			exit 1
+		fi
+		if ! ( eval $POST_UP ); then	# JP: sandbox the eval
+			# failing POST_UP will take interface down
+			"$CONN_DIR/$ethernet" down "$profile"
+			exit 1
+		fi
+		set_profile up "$profile"
+		;;
+	DISCONNECT)
+		if [[ -z $profile ]]; then
+			dhcpcd -k "$interface"
+			exit $?
+		fi
+		if ! ( eval $PRE_DOWN ); then   # JP: sandbox the eval
+			exit 1
+		fi
+		if ! "$CONN_DIR/ethernet" down "$profile"; then
+			exit 1
+		fi
+		if ! ( eval $POST_DOWN ); then  # JP: sandbox the eval
+			exit 1
+		fi
+		set_profile down "$profile"
 
-        if [ "$MODE" = "once" ]; then
+		if [ "$MODE" = "once" ]; then
 			source "$HALT_SCRIPT"
-        fi
-        ;;
-    LOST|REESTABLISHED)
-        # Not handled.
-        exit 0
-        ;;
-    *)
-        # ???
-        exit 1
-        ;;
+		fi
+		;;
+	LOST|REESTABLISHED)
+		# Not handled.
+		exit 0
+		;;
+	*)
+		# ???
+		exit 1
+		;;
 esac
 
