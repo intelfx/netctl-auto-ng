@@ -21,6 +21,14 @@ function do_exit() {
 	exit $1
 }
 
+function do_exit_on_signal() {
+	report_err "Caught a signal, exiting from the wpa_actiond handler"
+	do_exit 1
+}
+
+EXIT_SIGNALS=(TERM HUP INT QUIT)
+trap "do_exit_on_signal" "${EXIT_SIGNALS[@]}"
+
 case $action in
 	CONNECT)
 		if [[ -z $profile ]]; then
