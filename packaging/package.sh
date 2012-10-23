@@ -12,9 +12,10 @@ MD5_VAR="NAW_MD5"
 
 [[ -z "$TAG" ]] && { TAG="unspecified"; }
 VERSION="${TAG#v}"
+VERSION="${VERSION/-*-/.}"
 NAME="netcfg-auto-wireless-$VERSION"
 
-echo "==== Packaging script version $TAG" >&2
+echo "==== Packaging script at $TAG [version $VERSION]" >&2
 
 rm -rf "$DESTDIR"
 install -Dm644 PKGBUILD "$DESTDIR/PKGBUILD"
