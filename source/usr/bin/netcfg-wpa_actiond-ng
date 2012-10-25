@@ -484,7 +484,7 @@ esac
 #
 case "$REQ_STATE" in
 	running)
-		[[ "$STATE" = "halted" -o "$STATE" = "suspended" ]] && ignore_req
+		[[ "$STATE" = "halted" || "$STATE" = "suspended" ]] && ignore_req
 		;;
 	suspended)
 		[[ "$STATE" = "halted" ]] && ignore_req
