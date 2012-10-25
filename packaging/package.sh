@@ -12,7 +12,8 @@ MD5_VAR="NAW_MD5"
 
 [[ -z "$TAG" ]] && { TAG="unspecified"; }
 VERSION="${TAG#v}"
-VERSION="${VERSION/-*-/.}"
+VERSION="${VERSION/-g*/}"
+VERSION="${VERSION/-/.}"
 NAME="netcfg-auto-wireless-$VERSION"
 
 echo "==== Packaging script at $TAG [version $VERSION]" >&2
