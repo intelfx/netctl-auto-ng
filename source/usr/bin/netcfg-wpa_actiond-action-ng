@@ -10,11 +10,11 @@ action="$4"
 
 HALT_SCRIPT="$STATE_DIR/netcfg-auto-wireless-ng.suspend-script"
 MODE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.mode"
-[ -r "$MODE_FILE" ] && MODE=$(< "$MODE_FILE")
+[[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
 
 function do_exit() {
-	if (( $1 )) || [ "$action" = "DISCONNECT" ]; then
-		if [ "$MODE" = "once" ]; then
+	if (( $1 )) || [[ "$action" = "DISCONNECT" ]]; then
+		if [[ "$MODE" = "once" ]]; then
 			source "$HALT_SCRIPT"
 		fi
 	fi

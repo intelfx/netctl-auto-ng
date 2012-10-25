@@ -123,7 +123,7 @@ function do_lock() {
 # Status reporting primitives
 #
 align_column=25
-[ -t 1 ] && align_separator="$(tput hpa $align_column)"
+[[ -t 1 ]] && align_separator="$(tput hpa $align_column)"
 
 function quit() {
 	if (( $1 )); then
@@ -135,13 +135,13 @@ function quit() {
 }
 
 function report_aligned() {
-	[ -n "$QUIET" ] && return
+	[[ -n "$QUIET" ]] && return
 
 	local sep="$align_separator"
 	local left_margin="${3:-0}"
 	local key_len="$(( ${#1} + $left_margin ))"
 
-	[ -z "$sep" ] && sep="$( printf "%$(( $align_column-$key_len-2 ))s" )"
+	[[ -z "$sep" ]] && sep="$( printf "%$(( $align_column-$key_len-2 ))s" )"
 	echo -n "$( printf "%${left_margin}s" )"
 	report_notice "${1}: ${sep}${2}"
 }
@@ -161,7 +161,7 @@ function couldnot() {
 }
 
 function old_mode() {
-	[ -n "$MODE" ] || couldnot "read previous mode"
+	[[ -n "$MODE" ]] || couldnot "read previous mode"
 	REQ_MODE="$MODE"
 }
 
@@ -170,13 +170,13 @@ function old_mode() {
 function status() {
 	report_aligned "Interface used"      "$INTERFACE"
 	report_aligned "Auto-wireless state" "$STATE"
-	[ "$STATE" = "halted" ] && return
+	[[ "$STATE" = "halted" ]] && return
 	report_aligned "Auto-wireless mode"  "$MODE"
-	[ "$STATE" = "running" ] || return
-	[ -e "$STATE_DIR/interfaces/$INTERFACE" ] || return
+	[[ "$STATE" = "running" ]] || return
+	[[ -e "$STATE_DIR/interfaces/$INTERFACE" ]] || return
 	report_aligned "Profile running"     "$(< "$STATE_DIR/interfaces/$INTERFACE")"
 
-	if [ "$1" = "wpa" ]; then
+	if [[ "$1" = "wpa" ]]; then
 		shift
 		declare -A wpa_data
 
@@ -206,7 +206,7 @@ function need_exec_from_config() {
 function get_cmd_from_config() {
 	local CMD=$(eval echo '$NAW_CMD_'"$1")
 	report_debug "Querying command $1: variable name is NAW_CMD_$1, result is $CMD"
-	[ -n "$2" ] && CMD="$CMD $2"
+	[[ -n "$2" ]] && CMD="$CMD $2"
 	echo "$CMD"
 }
 
@@ -298,7 +298,7 @@ function start() {
 function is_on_ac_power() {
 	local HELPER
 	HELPER=$(which on_ac_power 2>/dev/null)
-	if [ -x "$HELPER" ]; then
+	if [[ -x "$HELPER" ]]; then
 		"$HELPER"
 		case "$?" in
 			0)
@@ -420,28 +420,28 @@ OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version" -o "q" -- "$@" 
 eval set -- $OPTS
 
 # Configs
-[ -r "$CONFIG" ] && source "$CONFIG" || report_err "cannot read the configuration file: $CONFIG"
-[ -r "$GLOBAL_CONFIG" ] && source "$GLOBAL_CONFIG"
+[[ -r "$CONFIG" ]] && source "$CONFIG" || report_err "cannot read the configuration file: $CONFIG"
+[[ -r "$GLOBAL_CONFIG" ]] && source "$GLOBAL_CONFIG"
 
 # Read variables
-[ -r "$MODE_FILE" ] && MODE=$(< "$MODE_FILE")
-[ -r "$STATE_FILE" ] && STATE=$(< "$STATE_FILE") || STATE="halted"
+[[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
+[[ -r "$STATE_FILE" ]] && STATE=$(< "$STATE_FILE") || STATE="halted"
 REQ_STATE="halted"
 REQ_MODE=""
 
 # Parse parameters
 parse_parameters $@ || exit 1
 
-if [ -z "$INTERFACE" ]; then
-	[ -r "$INTERFACES_FILE" ] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
+if [[ -z "$INTERFACE" ]]; then
+	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
 
 	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
 fi
 
 # Verify that all data is given
-[ -n "$REQ_MODE" ] || exec_from_config DEFAULT
-[ -n "$REQ_MODE" ] || quit 1 "Target mode not given"
-[ -n "$INTERFACE" ] || quit 1 "Interface not given"
+[[ -n "$REQ_MODE" ]] || exec_from_config DEFAULT
+[[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
+[[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
 
 PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
 
@@ -469,7 +469,7 @@ case "$REQ_MODE" in
 		REQ_STATE="running"
 		;;
 	halt)
-		[ "$STATE" = "halted" ] && noop
+		[[ "$STATE" = "halted" ]] && noop
 		;;
 	noop)
 		noop
@@ -484,15 +484,15 @@ esac
 #
 case "$REQ_STATE" in
 	running)
-		[ "$STATE" = "halted" -o "$STATE" = "suspended" ] && ignore_req
+		[[ "$STATE" = "halted" -o "$STATE" = "suspended" ]] && ignore_req
 		;;
 	suspended)
-		[ "$STATE" = "halted" ] && ignore_req
+		[[ "$STATE" = "halted" ]] && ignore_req
 		;;
 esac
 
 # Privileges and locking
-[ "$UID" != "0" ] && quit 2 "Shall be run as root"
+[[ "$UID" != "0" ]] && quit 2 "Shall be run as root"
 do_lock || quit 2 "Could not acquire the lock"
 
 rm -f "$HALT_SCRIPT"
@@ -510,10 +510,10 @@ case "$REQ_MODE" in
 		quit 0 "Successfully suspended"
 		;;
 	continuous|once)
-		[ "$STATE" != "running" ] && ( release_lock; start; ) || reconfigure
+		[[ "$STATE" != "running" ]] && ( release_lock; start; ) || reconfigure
 		echo "running" > "$STATE_FILE"
 		echo "$REQ_MODE" > "$MODE_FILE"
-		if [ "$REQ_MODE" = "once" ]; then
+		if [[ "$REQ_MODE" = "once" ]]; then
 #			(
 			function onexit() {
 				stop
