@@ -8,7 +8,6 @@ DESTDIR="$(realpath $DESTDIR)"
 
 TAG="$(git describe)"
 VERSION_VAR="NAW_VERSION"
-MD5_VAR="NAW_MD5"
 
 [[ -z "$TAG" ]] && { TAG="unspecified"; }
 VERSION="${TAG#v}"
@@ -18,12 +17,13 @@ NAME="netcfg-auto-wireless-$VERSION"
 
 echo "==== Packaging script at $TAG [version $VERSION]" >&2
 
-rm -rf "$DESTDIR"
+git push --all -f
+
+rm -rf "$DESTDIR"/{pkg,src,PKGBUILD}
 install -Dm644 PKGBUILD "$DESTDIR/PKGBUILD"
-BASENAME="$(basename "$ROOTDIR")"
-tar -cf "$DESTDIR/$NAME.tar" --exclude-vcs --exclude-backups --exclude=packaging --transform "s|^$BASENAME|$NAME/|" -C "$ROOTDIR/.." "$BASENAME"
-xz -9e "$DESTDIR/$NAME.tar"
-MD5=$(md5sum -b "$DESTDIR/$NAME.tar"* | cut -d' ' -f1)
-sed -r -e "s|\%$VERSION_VAR\%|$VERSION|" -e "s|\%$MD5_VAR\%|$MD5|" -i "$DESTDIR/PKGBUILD"
+sed -r -e "s|\%$VERSION_VAR\%|$VERSION|" -i "$DESTDIR/PKGBUILD"
+pushd "$DESTDIR"
+makepkg -g >> PKGBUILD
+popd
 
 echo "==== Packaging done" >&2

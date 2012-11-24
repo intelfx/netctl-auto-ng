@@ -8,9 +8,8 @@ pkgdesc="Extended automatic wireless management script based on netcfg"
 license=("GPL3")
 backup=(etc/conf.d/netcfg-auto-wireless)
 depends=("netcfg" "wpa_supplicant" "wpa_actiond")
-source=(netcfg-auto-wireless-${pkgver}.tar.xz)
+source=("${url}/archive/v${pkgver}.tar.gz")
 arch=(any)
-md5sums=('%NAW_MD5%')
 
 package() {
   cd "$srcdir/${pkgname}-${pkgver}"
