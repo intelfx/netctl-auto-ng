@@ -6,7 +6,7 @@ BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
 
 [Service]
-ExecStart=/usr/bin/netcfg-wpa_actiond-ng --inner runfile %i
+ExecStart=/usr/bin/netcfg-wpa_actiond-ng --inner bootup %i
 ExecStop=/usr/bin/netcfg-wpa_actiond-ng --inner halt %i
 ExecReload=/usr/bin/netcfg-wpa_actiond-ng --inner reconfigure %i
 Type=forking

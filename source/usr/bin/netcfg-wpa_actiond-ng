@@ -388,15 +388,10 @@ function parse_shortmode() {
 			REQ_MODE=noop
 			;;
 		b|bootup)
-			do_bootup
+			do_runfile || do_bootup
 			;;
 		p|power)
 			do_power
-			;;
-		runfile)
-			# This parameter is internal.
-			# It means reading parameters from a special file.
-			do_runfile || do_bootup
 			;;
 		st|status)
 			REQ_MODE=status
