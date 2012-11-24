@@ -340,6 +340,7 @@ function do_power() {
 function do_runfile() {
 	if (( "$INNER" )) && [[ -r "$RUN_FILE" ]]; then
 		local CMD="$(< "$RUN_FILE" )"
+		rm -f "$RUN_FILE"
 		report_notice "Executing run-file: $CMD"
 		parse_parameters $CMD
 	else
@@ -488,7 +489,6 @@ function execute_outer() {
 }
 
 function execute_inner() {
-	rm -f "$RUN_FILE"
 	rm -f "$HALT_SCRIPT"
 	echo "$INTERFACE" > "$INTERFACES_FILE"
 
