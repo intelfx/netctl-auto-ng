@@ -18,6 +18,7 @@ MODE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.mode"
 INTERFACES_FILE="$STATE_DIR/netcfg-auto-wireless-ng.interfaces"
 STATE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.state"
 LOCK_FILE="$STATE_DIR/netcfg-auto-wireless-ng.lock"
+RUN_FILE="$STATE_DIR/netcfg-auto-wireless-ng.run"
 
 function version() {
 	echo "netcfg-auto-wireless $NAW_VERSION"
@@ -225,6 +226,8 @@ function exec_from_config() {
 function stop() {
 	report_debug "Stopping $INTERFACE at $WPA_CTRL_PATH"
 
+	write_runfile
+
 	# Load interface specific config
 	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
 
@@ -320,6 +323,8 @@ function is_on_ac_power() {
 	fi
 }
 
+# Parameter handling and interface functions
+#
 function do_bootup() {
 	local RUN_CMD
 	is_on_ac_power && RUN_CMD="BOOT_AC" || RUN_CMD="BOOT_BATTERY"
@@ -330,6 +335,31 @@ function do_power() {
 	local RUN_CMD
 	is_on_ac_power && RUN_CMD="SW_AC" || RUN_CMD="SW_BATTERY"
 	exec_from_config "$RUN_CMD"
+}
+
+function do_runfile() {
+	if [[ -r "$RUN_FILE" ]]; then
+		local CMD="$(< "$RUN_FILE" )"
+		report_notice "Executing run-file: $CMD"
+		parse_parameters $CMD
+	else
+		report_notice "Run-file does not exist: performing bootup"
+		do_bootup
+	fi
+}
+
+function write_runfile() {
+	# This writes the run-file on default halt/suspend operations.
+	rm -f "$RUN_FILE"
+	echo "$REQ_MODE" >> "$RUN_FILE"
+}
+
+function write_runfile_full() {
+	# This writes the run-file when passing to the inner layer.
+	rm -f "$RUN_FILE"
+	(( "$QUIET" ))                 && echo "--quiet"      >> "$RUN_FILE"
+	[[ "$REQ_STATE" != "halted" ]] && echo "--$REQ_STATE" >> "$RUN_FILE"
+	                                  echo "$REQ_MODE"    >> "$RUN_FILE"
 }
 
 function parse_shortmode() {
@@ -361,6 +391,11 @@ function parse_shortmode() {
 		p|power)
 			do_power
 			;;
+		runfile)
+			# This parameter is internal.
+			# It means reading parameters from a special file.
+			do_runfile
+			;;
 		st|status)
 			REQ_MODE=status
 			;;
@@ -382,6 +417,13 @@ function parse_parameters() {
 				;;
 			--quiet|-q)
 				QUIET=1
+				;;
+			--inner)
+				# This parameter is internal.
+				# It means:
+				# 1) do not lock (instead, ensure the lockfile is present)
+				# 2) do not write runfile+invoke systemctl (instead, perform the actions directly)
+				INNER=1
 				;;
 			--)
 				;;
@@ -411,11 +453,93 @@ function parse_parameters() {
 	return 0
 }
 
+# Systemd detection & integration functions
+#
+function is_on_systemd() {
+	local SYSTEMD_PID="$(pidof -s "$(realpath -e "$(which systemd 2>/dev/null)" 2>/dev/null)" 2>/dev/null)" || return 1
+	[[ "$SYSTEMD_PID" == "1" ]] || return 1
+	return 0
+}
+
+
+function systemd_run() {
+	local SYSTEMD_UNIT="net-auto-wireless-ng@${INTERFACE}.service"
+	systemctl "$@" "$SYSTEMD_UNIT"
+}
+
+# Primary logic function
+#
+function execute_outer() {
+	case "$REQ_MODE" in
+		halt|suspend)
+			systemd_run stop
+			;;
+		continuous|once)
+			if systemd_run --quiet is-active; then
+				systemd_run reload
+			else
+				write_runfile_full
+				systemd_run start
+			fi
+			;;
+		*)
+			quit 1 "Unsupported target \"$REQ_MODE\""
+			;;
+	esac
+}
+
+function execute_inner() {
+	rm -f "$RUN_FILE"
+	rm -f "$HALT_SCRIPT"
+	echo "$INTERFACE" > "$INTERFACES_FILE"
+
+	case "$REQ_MODE" in
+		halt)
+			stop
+			echo "halted" > "$STATE_FILE"
+			quit 0 "Successfully halted"
+			;;
+		suspend)
+			stop
+			echo "suspended" > "$STATE_FILE"
+			quit 0 "Successfully suspended"
+			;;
+		continuous|once)
+			[[ "$STATE" != "running" ]] && ( release_lock; start; ) || reconfigure
+			echo "running" > "$STATE_FILE"
+			echo "$REQ_MODE" > "$MODE_FILE"
+			if [[ "$REQ_MODE" = "once" ]]; then
+#				(
+				function onexit() {
+					stop
+					echo "${NAW_STATE_ONCE_FAULT:-suspended}" > "$STATE_FILE"
+					quit 4 "Failed waiting for a connection"
+				}
+				do_trap onexit
+				report_debug "Entering once mode: waiting for connection on $INTERFACE for $NAW_ONCE_TIMEOUT seconds"
+				if wpa_check "$INTERFACE" "$NAW_ONCE_TIMEOUT"; then
+					need_exec_from_config ONCE_LOSS && echo "$0 $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
+					quit 0 "Verified in $REQ_MODE mode"
+				else
+					onexit
+				fi
+#				) &
+			fi
+			quit 0 "Running $REQ_MODE"
+			;;
+		*)
+			quit 1 "Unsupported target \"$REQ_MODE\""
+			;;
+	esac
+
+	quit 1 "Something wrong with the inner level"
+}
+
 # Main execution flow
 #
 
 # Parse options
-OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version" -o "q" -- "$@" )
+OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version,inner" -o "q" -- "$@" )
 (( $? )) && exit 1
 eval set -- $OPTS
 
@@ -432,14 +556,17 @@ REQ_MODE=""
 # Parse parameters
 parse_parameters $@ || exit 1
 
-if [[ -z "$INTERFACE" ]]; then
-	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
-
-	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
+if ! (( "$INNER" )); then
+	# Load fallback interface, if needed
+	if [[ -z "$INTERFACE" ]]; then
+		[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
+		is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
+	fi
+	# Load default command, if needed
+	[[ -n "$REQ_MODE" ]] || exec_from_config DEFAULT
 fi
 
 # Verify that all data is given
-[[ -n "$REQ_MODE" ]] || exec_from_config DEFAULT
 [[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
 [[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
 
@@ -491,48 +618,16 @@ case "$REQ_STATE" in
 		;;
 esac
 
+# Branch to the inner level if requested now
+(( "$INNER" )) && execute_inner
+
 # Privileges and locking
 [[ "$UID" != "0" ]] && quit 2 "Shall be run as root"
 do_lock || quit 2 "Could not acquire the lock"
 
-rm -f "$HALT_SCRIPT"
-echo "$INTERFACE" > "$INTERFACES_FILE"
-
-case "$REQ_MODE" in
-	halt)
-		stop
-		echo "halted" > "$STATE_FILE"
-		quit 0 "Successfully halted"
-		;;
-	suspend)
-		stop
-		echo "suspended" > "$STATE_FILE"
-		quit 0 "Successfully suspended"
-		;;
-	continuous|once)
-		[[ "$STATE" != "running" ]] && ( release_lock; start; ) || reconfigure
-		echo "running" > "$STATE_FILE"
-		echo "$REQ_MODE" > "$MODE_FILE"
-		if [[ "$REQ_MODE" = "once" ]]; then
-#			(
-			function onexit() {
-				stop
-				echo "${NAW_STATE_ONCE_FAULT:-suspended}" > "$STATE_FILE"
-				quit 4 "Failed waiting for a connection"
-			}
-			do_trap onexit
-			report_debug "Entering once mode: waiting for connection on $INTERFACE for $NAW_ONCE_TIMEOUT seconds"
-			if wpa_check "$INTERFACE" "$NAW_ONCE_TIMEOUT"; then
-				need_exec_from_config ONCE_LOSS && echo "$0 $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
-				quit 0 "Verified in $REQ_MODE mode"
-			else
-				onexit
-			fi
-#			) &
-		fi
-		quit 0 "Running $REQ_MODE"
-		;;
-	*)
-		quit 1 "Unsupported target \"$REQ_MODE\""
-		;;
-esac
+# Perform the actual process
+if is_on_systemd; then
+	execute_outer
+else
+	execute_inner
+fi
