@@ -11,6 +11,7 @@ ExecStop=/usr/bin/netcfg-wpa_actiond-ng --inner halt %i
 ExecReload=/usr/bin/netcfg-wpa_actiond-ng --inner reconfigure %i
 Type=forking
 PIDFile=/run/wpa_actiond_%i.pid
+KillMode=none
 
 [Install]
 WantedBy=multi-user.target
