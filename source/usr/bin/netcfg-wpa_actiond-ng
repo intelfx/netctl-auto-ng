@@ -371,7 +371,9 @@ function parse_shortmode() {
 			REQ_MODE=once
 			;;
 		h|halt)
-			REQ_MODE=halt
+			# On halt, we also attempt to read a run-file.
+			# This is to make suspending possible within systemd's cgroup.
+			do_runfile || REQ_MODE=halt
 			;;
 		su|suspend)
 			REQ_MODE=suspend
@@ -467,12 +469,12 @@ function systemd_run() {
 # Primary logic function
 #
 function execute_outer() {
+	write_runfile_full
 	case "$REQ_MODE" in
 		halt|suspend)
 			systemd_run stop
 			;;
 		continuous|once)
-			write_runfile_full
 			if systemd_run --quiet is-active; then
 				systemd_run reload
 			else
