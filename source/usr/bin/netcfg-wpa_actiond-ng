@@ -351,7 +351,7 @@ function do_runfile() {
 function write_runfile() {
 	# This writes the run-file on default halt/suspend operations.
 	rm -f "$RUN_FILE"
-	echo "$REQ_MODE" >> "$RUN_FILE"
+	echo "$MODE" >> "$RUN_FILE"
 }
 
 function write_runfile_full() {
