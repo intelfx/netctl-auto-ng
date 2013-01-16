@@ -529,7 +529,7 @@ function execute_inner() {
 				do_trap onexit
 				report_debug "Entering once mode: waiting for connection on $INTERFACE for $NAW_ONCE_TIMEOUT seconds"
 				if wpa_check "$INTERFACE" "$NAW_ONCE_TIMEOUT"; then
-					need_exec_from_config ONCE_LOSS && echo "$0 $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
+					need_exec_from_config ONCE_LOSS && echo "\"$(realpath "$0")\" $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
 				else
 					onexit
 				fi
