@@ -293,11 +293,13 @@ function start() {
 
 	prepare_config
 
-	WPA_DRIVER="${WPA_DRIVER:-nl80211,wext}"
-	WPA_OPTS="-W $WPA_OPTS"
+	start_wpa "$INTERFACE" "$WPA_CONF" "${WPA_DRIVER:-nl80211,wext}" "-W $WPA_OPTS" \
+		&& check_pidfile "$SUPPLICANT_PIDFILE" \
+		|| { quit 3 "Failed to start wpa_supplicant"; }
 
-	start_wpa "$INTERFACE" "$WPA_CONF" "$WPA_DRIVER" "$WPA_OPTS" && check_pidfile "$SUPPLICANT_PIDFILE" || { quit 3 "Failed to start wpa_supplicant"; }
-	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "$ACTIOND_PIDFILE" -a "$ACTION_SCRIPT" && check_pidfile "$ACTIOND_PIDFILE" || { quit 3 "Failed to start wpa_actiond"; }
+	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "$ACTIOND_PIDFILE" -a "$ACTION_SCRIPT" \
+		&& check_pidfile "$ACTIOND_PIDFILE" \
+		|| { quit 3 "Failed to start wpa_actiond"; }
 }
 
 # Power management functions
