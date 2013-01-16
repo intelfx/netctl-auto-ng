@@ -1,10 +1,10 @@
 #!/bin/bash
 
 [[ "$1" ]] || { echo "First parameter (source root) unset, exiting"; exit 1; }
-ROOTDIR="$(realpath $1)"
 
-[[ "$DESTDIR" ]] || DESTDIR="$ROOTDIR/packaging/output"
-DESTDIR="$(realpath $DESTDIR)"
+ROOTDIR="$(realpath "$1")"
+DESTDIR="$(dirname "$(realpath "$0")")/output"
+PKGBUILD="$(dirname "$(realpath "$0")")/PKGBUILD"
 
 TAG="$(git describe)"
 VERSION_VAR="NAW_VERSION"
@@ -20,7 +20,7 @@ echo "==== Packaging script at $TAG [version $VERSION]" >&2
 git push --all -f
 
 rm -rf "$DESTDIR"/{pkg,src,PKGBUILD}
-install -Dm644 PKGBUILD "$DESTDIR/PKGBUILD"
+install -Dm644 "$PKGBUILD" "$DESTDIR/PKGBUILD"
 sed -r -e "s|\%$VERSION_VAR\%|$VERSION|" -i "$DESTDIR/PKGBUILD"
 pushd "$DESTDIR"
 makepkg -g >> PKGBUILD
