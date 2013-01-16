@@ -169,13 +169,13 @@ function old_mode() {
 # Main subroutines
 #
 function status() {
-	report_aligned "Interface used"      "$INTERFACE"
-	report_aligned "Auto-wireless state" "$STATE"
-	[[ "$STATE" = "halted" ]] && return
-	report_aligned "Auto-wireless mode"  "$MODE"
-	[[ "$STATE" = "running" ]] || return
+	report_aligned "Interface used"                       "$INTERFACE"
+	report_aligned "Auto-wireless state"                  "$STATE"
+	[[ "$STATE" != "halted" ]]                  || return
+	report_aligned "Auto-wireless mode"                   "$MODE"
+	[[ "$STATE" == "running" ]]                 || return
 	[[ -e "$STATE_DIR/interfaces/$INTERFACE" ]] || return
-	report_aligned "Profile running"     "$(< "$STATE_DIR/interfaces/$INTERFACE")"
+	report_aligned "Profile running"                      "$(< "$STATE_DIR/interfaces/$INTERFACE")"
 
 	if [[ "$1" = "wpa" ]]; then
 		shift
