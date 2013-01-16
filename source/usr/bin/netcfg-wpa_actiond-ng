@@ -585,14 +585,58 @@ fi
 ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
 SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
 
-# Report minimal status information
-if [[ "$REQ_MODE" != "status" ]] && ! (( "$QUIET" )); then
-	report_notice "Using interface: $INTERFACE"
-	report_notice "Daemon state: $STATE (in $MODE mode)"
-	report_notice "Target: $REQ_MODE"
+# Report minimal status information and check runtime status
+#
+[[ "$REQ_MODE" != "status" ]] && ! (( "$QUIET" )) && _NEED_MINREPORT=1
+
+if ! is_on_systemd; then
+
+	report_debug "Systemd is NOT PRESENT"
+	check_pidfile "$SUPPLICANT_PIDFILE" && check_pidfile "$ACTIOND_PIDFILE" && _IS_RUNNING=1
+
+elif systemd_run --quiet is-active; then
+
+	report_debug "Systemd status: ACTIVE"
+	_IS_RUNNING=1
+
+else
+	report_debug "Systemd status: STOPPED"
 fi
 
+# Fix $STATE if needed
+case "$STATE" in
+	running)
+		if (( "$_IS_RUNNING" )); then
+			_DAEMON_STATE="running"
+			_DAEMON_REPORT="report_notice"
+		else
+			_DAEMON_STATE="unknown stopped (resetting state-file)"
+			_DAEMON_REPORT="report_err"
+			rm "$STATE_FILE"
+			STATE="halted"
+		fi
+		;;
+	*)
+		if (( "$_IS_RUNNING" )); then
+			_DAEMON_STATE="running (setting state-file to running)"
+			_DAEMON_REPORT="report_err"
+			echo "running" > "$STATE_FILE"
+			STATE="running"
+		else
+			_DAEMON_STATE="$STATE"
+			_DAEMON_REPORT="report_notice"
+		fi
+		;;
+esac
+
+if (( "$_NEED_MINREPORT" )); then
+	report_notice "Using interface: $INTERFACE"
+	eval "$_DAEMON_REPORT" "\"Daemon state: $_DAEMON_STATE (in $MODE mode)\""
+	report_notice "Target: $REQ_MODE"
+fi
 report_debug "Target min-state: $REQ_STATE"
+
+unset _IS_RUNNING _NEED_MINREPORT
 
 # Set requirements and perform actions for special targets
 #
