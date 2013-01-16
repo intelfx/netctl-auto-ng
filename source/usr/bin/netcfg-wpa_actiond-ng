@@ -585,11 +585,14 @@ fi
 ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
 SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
 
-report_debug "Using interface: $INTERFACE"
-report_debug "Using mode: $REQ_MODE"
-report_debug "Using min-state: $REQ_STATE"
-report_debug "Existing mode: $MODE"
-report_debug "Existing state: $STATE"
+# Report minimal status information
+if [[ "$REQ_MODE" != "status" ]] && ! (( "$QUIET" )); then
+	report_notice "Using interface: $INTERFACE"
+	report_notice "Daemon state: $STATE (in $MODE mode)"
+	report_notice "Target: $REQ_MODE"
+fi
+
+report_debug "Target min-state: $REQ_STATE"
 
 # Set requirements and perform actions for special targets
 #
