@@ -232,7 +232,7 @@ function stop() {
 	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
 
 	netcfg -D "$INTERFACE"
-	timeout_wait 1 '[[ ! -f "$PIDFILE" ]]' || kill $(< "$PIDFILE")
+	timeout_wait 1 '[[ ! -f "$ACTIOND_PIDFILE" ]]' || kill $(< "$ACTIOND_PIDFILE")
 	stop_wpa "$INTERFACE"
 	if [[ "$RFKILL" == "soft" ]]; then
 		set_rf_state "$INTERFACE" disabled "$RFKILL_NAME"
@@ -271,6 +271,11 @@ function reconfigure() {
 	wpa_reconfigure "$INTERFACE"
 }
 
+function check_pidfile() {
+	report_debug "Checking PID-file $1"
+	pgrep -F "$1" &>/dev/null
+}
+
 function start() {
 	report_debug "Starting $INTERFACE"
 
@@ -291,8 +296,8 @@ function start() {
 	WPA_DRIVER="${WPA_DRIVER:-nl80211,wext}"
 	WPA_OPTS="-W $WPA_OPTS"
 
-	start_wpa "$INTERFACE" "$WPA_CONF" "$WPA_DRIVER" "$WPA_OPTS" || { quit 3 "Failed to start wpa_supplicant"; }
-	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "${PIDFILE}" -a "$ACTION_SCRIPT" || { quit 3 "Failed to start wpa_actiond"; }
+	start_wpa "$INTERFACE" "$WPA_CONF" "$WPA_DRIVER" "$WPA_OPTS" && check_pidfile "$SUPPLICANT_PIDFILE" || { quit 3 "Failed to start wpa_supplicant"; }
+	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "$ACTIOND_PIDFILE" -a "$ACTION_SCRIPT" && check_pidfile "$ACTIOND_PIDFILE" || { quit 3 "Failed to start wpa_actiond"; }
 }
 
 # Power management functions
@@ -569,7 +574,8 @@ fi
 [[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
 [[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
 
-PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
+ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
+SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
 
 report_debug "Using interface: $INTERFACE"
 report_debug "Using mode: $REQ_MODE"
