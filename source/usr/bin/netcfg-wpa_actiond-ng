@@ -487,6 +487,7 @@ function execute_outer() {
 			systemd_run stop
 			;;
 		continuous|once)
+			# Actually, all these targets boil down to reading the run-file.
 			if systemd_run --quiet is-active; then
 				systemd_run reload
 			else
@@ -529,7 +530,6 @@ function execute_inner() {
 				report_debug "Entering once mode: waiting for connection on $INTERFACE for $NAW_ONCE_TIMEOUT seconds"
 				if wpa_check "$INTERFACE" "$NAW_ONCE_TIMEOUT"; then
 					need_exec_from_config ONCE_LOSS && echo "$0 $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
-					quit 0 "Verified in $REQ_MODE mode"
 				else
 					onexit
 				fi
