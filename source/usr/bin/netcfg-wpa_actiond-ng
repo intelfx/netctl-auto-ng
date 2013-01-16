@@ -360,12 +360,13 @@ function write_runfile() {
 	echo "$MODE" >> "$RUN_FILE"
 }
 
-function write_runfile_full() {
+function write_runfile_outer() {
 	# This writes the run-file when passing to the inner layer.
 	rm -f "$RUN_FILE"
 	(( "$QUIET" ))                 && echo "--quiet"      >> "$RUN_FILE"
 	[[ "$REQ_STATE" != "halted" ]] && echo "--$REQ_STATE" >> "$RUN_FILE"
 	                                  echo "$REQ_MODE"    >> "$RUN_FILE"
+	                                  echo "--nolock"     >> "$RUN_FILE"
 }
 
 function parse_shortmode() {
@@ -426,9 +427,14 @@ function parse_parameters() {
 			--inner)
 				# This parameter is internal.
 				# It means:
-				# 1) do not lock (instead, ensure the lockfile is present)
-				# 2) do not write runfile+invoke systemctl (instead, perform the actions directly)
+				# 1) do not write runfile+invoke systemctl (instead, perform the actions directly).
 				INNER=1
+				;;
+			--nolock)
+				# This is passed when inner layer is invoked by the outer.
+				# It means:
+				# 1) do not acquire the lock.
+				NOLOCK=1
 				;;
 			--)
 				;;
@@ -475,7 +481,7 @@ function systemd_run() {
 # Primary logic function
 #
 function execute_outer() {
-	write_runfile_full
+	write_runfile_outer
 	case "$REQ_MODE" in
 		halt|suspend)
 			systemd_run stop
@@ -543,7 +549,7 @@ function execute_inner() {
 #
 
 # Parse options
-OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version,inner" -o "q" -- "$@" )
+OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version,inner,nolock" -o "q" -- "$@" )
 (( $? )) && exit 1
 eval set -- $OPTS
 
@@ -623,12 +629,15 @@ case "$REQ_STATE" in
 		;;
 esac
 
-# Branch to the inner level if requested now
-(( "$INNER" )) && execute_inner
-
 # Privileges and locking
 [[ "$UID" != "0" ]] && quit 2 "Shall be run as root"
-do_lock || quit 2 "Could not acquire the lock"
+
+if ! (( "$NOLOCK" )); then
+	do_lock || quit 2 "Could not acquire the lock"
+fi
+
+# Branch to the inner level if requested now
+(( "$INNER" )) && execute_inner
 
 # Perform the actual process
 if is_on_systemd; then
