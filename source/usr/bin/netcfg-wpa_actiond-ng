@@ -140,7 +140,7 @@ function quit() {
 }
 
 function report_aligned() {
-	[[ -n "$QUIET" ]] && return
+	(( "$QUIET" )) && return
 
 	local sep="$align_separator"
 	local left_margin="${3:-0}"
