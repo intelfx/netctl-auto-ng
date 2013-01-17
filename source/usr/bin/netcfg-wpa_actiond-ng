@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Primary debug hook
+[[ -e "/tmp/.net-auto-wireless-debug" ]] && { QUIET=0; NETCFG_DEBUG=1; }
+
 . /usr/lib/network/network
 . "$SUBR_DIR/8021x"
 . "$SUBR_DIR/rfkill"
