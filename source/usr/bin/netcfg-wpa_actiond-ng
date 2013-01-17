@@ -351,6 +351,7 @@ function do_power() {
 function do_runfile() {
 	if (( "$INNER" )) && [[ -r "$RUN_FILE" ]]; then
 		local CMD="$(< "$RUN_FILE" )"
+		local _IS_PARSING_RUNFILE=1
 		rm -f "$RUN_FILE"
 		report_notice "Executing run-file: $CMD"
 		parse_parameters $CMD
@@ -387,6 +388,10 @@ function parse_shortmode() {
 			# On halt, we also attempt to read a run-file.
 			# This is to make suspending possible within systemd's cgroup.
 			do_runfile || REQ_MODE=halt
+
+			# If we received the halt mode through arguments, remember this
+			# (see runtime status checking)
+			(( "$_IS_PARSING_RUNFILE" )) || IS_HALTING=1
 			;;
 		su|suspend)
 			REQ_MODE=suspend
@@ -598,7 +603,11 @@ if ! is_on_systemd; then
 	report_debug "Systemd is NOT PRESENT"
 	check_pidfile "$SUPPLICANT_PIDFILE" && check_pidfile "$ACTIOND_PIDFILE" && _IS_RUNNING=1
 
-elif systemd_run --quiet is-active; then
+# Systemd reports daemons as "stopped" when they are in process of shutting down.
+# Handle this.
+# Actually, systemd does not commit a stop if a service was not running, so it is relatively safe
+# to assume that we were running if called from the systemd stop/halt sequence.
+elif systemd_run --quiet is-active || { (( "$INNER" )) && (( "$IS_HALTING" )); }; then
 
 	report_debug "Systemd status: ACTIVE"
 	_IS_RUNNING=1
