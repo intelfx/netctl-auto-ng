@@ -256,7 +256,6 @@ function prepare_config() {
 		load_profile "$profile"
 
 		[[ "$CONNECTION" != "wireless" ]] && exit 1
-		# Exclude wpa-config, the wpa_conf is 'complete' and doesn't fit in this scheme
 		[[ "$SECURITY" == "wpa-config" ]] && exit 1
 
 		SECURITY="${SECURITY:-none}"
