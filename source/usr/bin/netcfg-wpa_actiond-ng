@@ -474,14 +474,8 @@ function parse_parameters() {
 	return 0
 }
 
-# Systemd detection & integration functions
+# Systemd integration functions
 #
-function is_on_systemd() {
-	local SYSTEMD_PID="$(pidof -s "$(realpath -e "$(which systemd 2>/dev/null)" 2>/dev/null)" 2>/dev/null)" || return 1
-	[[ "$SYSTEMD_PID" == "1" ]] || return 1
-	return 0
-}
-
 
 function systemd_run() {
 	local SYSTEMD_UNIT="net-auto-wireless-ng@${INTERFACE}.service"
@@ -597,16 +591,11 @@ SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
 #
 [[ "$REQ_MODE" != "status" ]] && ! (( "$QUIET" )) && _NEED_MINREPORT=1
 
-if ! is_on_systemd; then
-
-	report_debug "Systemd is NOT PRESENT"
-	check_pidfile "$SUPPLICANT_PIDFILE" && check_pidfile "$ACTIOND_PIDFILE" && _IS_RUNNING=1
-
 # Systemd reports daemons as "stopped" when they are in process of shutting down.
 # Handle this.
 # Actually, systemd does not commit a stop if a service was not running, so it is relatively safe
 # to assume that we were running if called from the systemd stop/halt sequence.
-elif systemd_run --quiet is-active || { (( "$INNER" )) && (( "$IS_HALTING" )); }; then
+if systemd_run --quiet is-active || { (( "$INNER" )) && (( "$IS_HALTING" )); }; then
 
 	report_debug "Systemd status: ACTIVE"
 	_IS_RUNNING=1
@@ -700,9 +689,5 @@ fi
 # Branch to the inner level if requested now
 (( "$INNER" )) && execute_inner
 
-# Perform the actual process
-if is_on_systemd; then
-	execute_outer
-else
-	execute_inner
-fi
+# Otherwise continue to the user facade
+execute_outer
