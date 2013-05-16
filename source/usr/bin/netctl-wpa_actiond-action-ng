@@ -8,8 +8,8 @@ action="$4"
 . /usr/lib/network/network
 [[ "$profile" ]] && load_profile "$profile"
 
-HALT_SCRIPT="$STATE_DIR/netcfg-auto-wireless-ng.suspend-script"
-MODE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.mode"
+HALT_SCRIPT="$STATE_DIR/netctl-auto-wireless-ng.suspend-script"
+MODE_FILE="$STATE_DIR/netctl-auto-wireless-ng.mode"
 [[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
 
 function do_exit() {

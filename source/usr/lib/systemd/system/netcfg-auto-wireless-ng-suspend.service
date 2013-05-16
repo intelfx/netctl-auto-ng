@@ -1,0 +1,10 @@
+[Unit]
+Description=Suspend netctl-auto-wireless-ng upon sleep
+PartOf=sleep.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/netctl-auto-wireless suspend
+ExecStop=/usr/bin/netctl-auto-wireless resume
+KillMode=none

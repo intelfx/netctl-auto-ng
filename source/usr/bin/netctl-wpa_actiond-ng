@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Primary debug hook
-[[ -e "/tmp/.netcfg-auto-wireless-debug" ]] && { QUIET=0; NETCFG_DEBUG=1; }
+[[ -e "/tmp/.netctl-auto-wireless-debug" ]] && { QUIET=0; NETCTL_DEBUG=1; }
 
 . /usr/lib/network/network
 . "$SUBR_DIR/8021x"
@@ -10,27 +10,27 @@
 NAW_VERSION=unpackaged
 
 AUTOWIFI="/usr/sbin/wpa_actiond"
-ACTION_SCRIPT="/usr/bin/netcfg-wpa_actiond-action-ng"
+ACTION_SCRIPT="/usr/bin/netctl-wpa_actiond-action-ng"
 WPA_CTRL_PATH="/run/wpa_supplicant"
-CONFIG="/etc/conf.d/netcfg-auto-wireless"
-GLOBAL_CONFIG="/etc/conf.d/netcfg"
+CONFIG="/etc/conf.d/netctl-auto-wireless"
+GLOBAL_CONFIG="/etc/conf.d/netctl"
 
 check_make_state_dir
 
-HALT_SCRIPT="$STATE_DIR/netcfg-auto-wireless-ng.suspend-script"
-MODE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.mode"
-INTERFACES_FILE="$STATE_DIR/netcfg-auto-wireless-ng.interfaces"
-STATE_FILE="$STATE_DIR/netcfg-auto-wireless-ng.state"
-LOCK_FILE="$STATE_DIR/netcfg-auto-wireless-ng.lock"
-RUN_FILE="$STATE_DIR/netcfg-auto-wireless-ng.run"
+HALT_SCRIPT="$STATE_DIR/netctl-auto-wireless-ng.suspend-script"
+MODE_FILE="$STATE_DIR/netctl-auto-wireless-ng.mode"
+INTERFACES_FILE="$STATE_DIR/netctl-auto-wireless-ng.interfaces"
+STATE_FILE="$STATE_DIR/netctl-auto-wireless-ng.state"
+LOCK_FILE="$STATE_DIR/netctl-auto-wireless-ng.lock"
+RUN_FILE="$STATE_DIR/netctl-auto-wireless-ng.run"
 
 function version() {
-	echo "netcfg-auto-wireless $NAW_VERSION"
+	echo "netctl-auto-wireless $NAW_VERSION"
 }
 
 function usage() {
 	cat << END
-netcfg-auto-wireless: An extended automatic wireless management script.
+netctl-auto-wireless: An extended automatic wireless management script.
 
 Usage:
 	$(basename "$0") [OPTIONS] <target> [interface]
@@ -84,8 +84,8 @@ Interface specification:
 
 	If specified, it overrides any other setting.
 	Otherwise, the interface name is read from the following places:
-	- /run/network/netcfg-auto-wireless-ng.interfaces
-	- /etc/conf.d/netcfg (\$WIRELESS_INTERFACE)
+	- /run/network/netctl-auto-wireless-ng.interfaces
+	- /etc/conf.d/netctl (\$WIRELESS_INTERFACE)
 
 Exit codes:
 	0: done or nothing to do
@@ -95,8 +95,8 @@ Exit codes:
 	4: timeout/abort while waiting for an established connection ("once" mode)
 
 Configuration files:
-	Native configuration file:  /etc/conf.d/netcfg-auto-wireless
-	Netcfg configuration file:  /etc/conf.d/netcfg
+	Native configuration file:  /etc/conf.d/netctl-auto-wireless
+	Netcfg configuration file:  /etc/conf.d/netctl
 	Network profiles directory: /etc/network.d
 END
 }
@@ -235,7 +235,7 @@ function stop() {
 	# Load interface specific config
 	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
 
-	netcfg -D "$INTERFACE"
+	netctl -D "$INTERFACE"
 	timeout_wait 1 '[[ ! -f "$ACTIOND_PIDFILE" ]]' || kill $(< "$ACTIOND_PIDFILE")
 	stop_wpa "$INTERFACE"
 	if [[ "$RFKILL" == "soft" ]]; then
@@ -285,7 +285,7 @@ function start() {
 	# Load interface specific config
 	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
 
-	netcfg -D "$INTERFACE"
+	netctl -D "$INTERFACE"
 
 	# Kill any existing wpa_supplicant on this interface
 	stop_wpa "$INTERFACE"
@@ -478,7 +478,7 @@ function parse_parameters() {
 #
 
 function systemd_run() {
-	local SYSTEMD_UNIT="netcfg-auto-wireless-ng@${INTERFACE}.service"
+	local SYSTEMD_UNIT="netctl-auto-wireless-ng@${INTERFACE}.service"
 	systemctl "$@" "$SYSTEMD_UNIT"
 }
 

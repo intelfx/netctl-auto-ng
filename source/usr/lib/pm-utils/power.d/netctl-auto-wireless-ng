@@ -1,6 +1,6 @@
 #!/bin/sh
 
-AUTOWIRELESS_FILE="/usr/bin/netcfg-auto-wireless"
+AUTOWIRELESS_FILE="/usr/bin/netctl-auto-wireless"
 [[ -x "$AUTOWIRELESS_FILE" ]] || exit $NA
 
 "$AUTOWIRELESS_FILE" power

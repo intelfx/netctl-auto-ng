@@ -1,14 +1,14 @@
 [Unit]
-Description=Automatic extended netcfg wireless connection
+Description=Extended automatic wireless connection with netctl
 Before=network.target
 Wants=network.target
 BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
 
 [Service]
-ExecStart=/usr/bin/netcfg-wpa_actiond-ng --inner bootup %i
-ExecStop=/usr/bin/netcfg-wpa_actiond-ng --inner halt %i
-ExecReload=/usr/bin/netcfg-wpa_actiond-ng --inner reconfigure %i
+ExecStart=/usr/bin/netctl-wpa_actiond-ng --inner bootup %i
+ExecStop=/usr/bin/netctl-wpa_actiond-ng --inner halt %i
+ExecReload=/usr/bin/netctl-wpa_actiond-ng --inner reconfigure %i
 Type=forking
 PIDFile=/run/wpa_actiond_%i.pid
 KillMode=none

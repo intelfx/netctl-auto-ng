@@ -1,13 +1,13 @@
 # Maintainer: Ivan Shapovalov <intelfx100@gmail.com>
 
-pkgname=netcfg-auto-wireless
+pkgname=netctl-auto-wireless
 pkgver=%NAW_VERSION%
-url="https://github.com/intelfx/netcfg-auto-wireless"
+url="https://github.com/intelfx/netctl-auto-wireless"
 pkgrel=1
-pkgdesc="Extended automatic wireless management script based on netcfg"
+pkgdesc="Extended automatic wireless management script using netctl"
 license=("GPL3")
-backup=(etc/conf.d/netcfg-auto-wireless)
-depends=("netcfg" "wpa_supplicant" "wpa_actiond")
+backup=(etc/conf.d/netctl-auto-wireless)
+depends=("netctl" "wpa_supplicant" "wpa_actiond")
 source=("${url}/archive/v${pkgver}.tar.gz")
 arch=(any)
 

@@ -13,7 +13,7 @@ VERSION_VAR="NAW_VERSION"
 VERSION="${TAG#v}"
 VERSION="${VERSION/-g*/}"
 VERSION="${VERSION/-/.}"
-NAME="netcfg-auto-wireless-$VERSION"
+NAME="netctl-auto-wireless-$VERSION"
 
 echo "==== Packaging script at $TAG [version $VERSION]" >&2
 
