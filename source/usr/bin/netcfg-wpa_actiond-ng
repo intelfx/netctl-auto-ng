@@ -7,7 +7,7 @@
 . "$SUBR_DIR/8021x"
 . "$SUBR_DIR/rfkill"
 
-NAW_VERSION="0.2.0"
+NAW_VERSION=unpackaged
 
 AUTOWIFI="/usr/sbin/wpa_actiond"
 ACTION_SCRIPT="/usr/bin/netcfg-wpa_actiond-action-ng"
