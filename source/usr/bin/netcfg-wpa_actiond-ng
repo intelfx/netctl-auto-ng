@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Primary debug hook
-[[ -e "/tmp/.net-auto-wireless-debug" ]] && { QUIET=0; NETCFG_DEBUG=1; }
+[[ -e "/tmp/.netcfg-auto-wireless-debug" ]] && { QUIET=0; NETCFG_DEBUG=1; }
 
 . /usr/lib/network/network
 . "$SUBR_DIR/8021x"
@@ -478,7 +478,7 @@ function parse_parameters() {
 #
 
 function systemd_run() {
-	local SYSTEMD_UNIT="net-auto-wireless-ng@${INTERFACE}.service"
+	local SYSTEMD_UNIT="netcfg-auto-wireless-ng@${INTERFACE}.service"
 	systemctl "$@" "$SYSTEMD_UNIT"
 }
 
