@@ -5,6 +5,9 @@ PartOf=sleep.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/netctl-auto-wireless suspend
-ExecStop=/usr/bin/netctl-auto-wireless resume
+
+# We have to recursively invoke system{d,ctl} via our wrapper - no other way...
+ExecStart=/usr/bin/netctl-auto-ng suspend
+ExecStop=/usr/bin/netctl-auto-ng resume
+
 KillMode=none

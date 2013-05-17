@@ -1,6 +1,6 @@
 #!/bin/bash
 
-AUTOWIRELESS_FILE="/usr/bin/netctl-auto-wireless"
+AUTOWIRELESS_FILE="/usr/bin/netctl-auto-ng"
 [[ -x "$AUTOWIRELESS_FILE" ]] || exit $NA
 
 case "$1" in

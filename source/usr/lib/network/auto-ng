@@ -1,0 +1,60 @@
+#!/bin/bash
+
+INNER=1
+
+. /usr/lib/network/auto-ng.action
+
+# Main execution flow
+#
+
+# Verify that all data is given
+[[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
+[[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
+
+ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
+SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
+
+# Inner routine
+#
+rm -f "$HALT_SCRIPT"
+echo "$INTERFACE" > "$INTERFACES_FILE"
+
+case "$REQ_MODE" in
+	halt)
+		stop
+		echo "halted" > "$STATE_FILE"
+		quit 0 "Successfully halted"
+		;;
+	suspend)
+		stop
+		echo "suspended" > "$STATE_FILE"
+		quit 0 "Successfully suspended"
+		;;
+	continuous|once)
+		[[ "$STATE" != "running" ]] && ( release_lock; start; ) || reconfigure
+		echo "running" > "$STATE_FILE"
+		echo "$REQ_MODE" > "$MODE_FILE"
+		if [[ "$REQ_MODE" = "once" ]]; then
+#			(
+			function onexit() {
+				stop
+				echo "${NAW_STATE_ONCE_FAULT:-suspended}" > "$STATE_FILE"
+				quit 4 "Failed waiting for a connection"
+			}
+			do_trap onexit
+			report_debug "Entering once mode: waiting for connection on $INTERFACE for $NAW_ONCE_TIMEOUT seconds"
+			if wpa_check "$INTERFACE" "$NAW_ONCE_TIMEOUT"; then
+				need_exec_from_config ONCE_LOSS && echo "\"$(realpath "$0")\" $(get_cmd_from_config ONCE_LOSS)" > "$HALT_SCRIPT"
+			else
+				onexit
+			fi
+#			) &
+		fi
+		quit 0 "Running $REQ_MODE"
+		;;
+	*)
+		quit 1 "Unsupported target \"$REQ_MODE\""
+		;;
+esac
+
+quit 1 "Something wrong with the inner level"

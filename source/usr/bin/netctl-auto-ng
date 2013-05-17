@@ -1,1 +1,114 @@
-netctl-wpa_actiond-ng
+#!/bin/bash
+
+. /usr/lib/network/auto-ng.functions
+
+function usage() {
+	cat << END
+netctl-auto-wireless: An extended automatic wireless management script.
+
+Usage:
+	$(basename "$0") [OPTIONS] <target> [interface]
+
+Options:
+	-q, --quiet:     Suppress non-error messages.
+	--running:       Require the current state to be "running".
+	--suspended:     Require the current state to be "suspended" or "running".
+
+States:
+	There are three dedicated states of the script/daemon:
+	 - running   (scanning is active)
+	 - suspended (scanning is stopped, networks are disconnected)
+	 - halted    (technically same as suspended)
+
+	Their purpose is to allow commands to the script to be skipped
+	automatically in a conditional manner (using options described above).
+
+Targets:
+	A target is the desired operation mode of the script.
+	It may be one of the following:
+
+	continuous:  Scan for networks endlessly, connecting to first found one.
+	once:        Scan for networks once (for a timeout), connecting to first
+	             found network and exiting as soon as the connection gets lost.
+
+	halt:        Stop the scanner daemon and disconnect from any network.
+	suspend:     Same as halt, but go to state "suspended".
+
+	last:        Go to the last active mode (either "continuous" or "once").
+	resume:      Same as last, but require the state to be "suspended".
+	             This target is made for readability.
+
+	reconfigure: Re-read network profiles.
+
+	status:      Print (pretty-print, if on terminal) the connection info.
+	status wpa:  Same as "status", but also print information from
+	             wpa_supplicant (if connected).
+				 If field names are given after "wpa", print them only
+				 (otherwise, print all fields).
+
+	bootup:      Auto-configure the daemon in a mode acceptable for a
+	             system boot sequence.
+	power:       Auto-configure the daemon in a mode acceptable for a
+	             power source transition (battery <-> AC).
+
+	For two latest targets, see the configuration file.
+
+Interface specification:
+	A single network interface may or may not be specified.
+
+	If specified, it overrides any other setting.
+	Otherwise, the interface name is read from the following places:
+	- /run/network/netctl-auto-wireless-ng.interfaces
+	- /etc/conf.d/netctl (\$WIRELESS_INTERFACE)
+
+Exit codes:
+	0: done or nothing to do
+	1: error while processing options or configuration files
+	2: unsufficient privileges or locking failed
+	3: interface init failed
+	4: timeout/abort while waiting for an established connection ("once" mode)
+
+Configuration files:
+	Native configuration file:  /etc/conf.d/netctl-auto-wireless
+	Netcfg configuration file:  /etc/conf.d/netctl
+	Network profiles directory: /etc/network.d
+END
+}
+
+# Main execution flow
+#
+
+# Load fallback interface, if needed
+if [[ -z "$INTERFACE" ]]; then
+	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
+	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
+fi
+
+# Load default command, if needed
+[[ -n "$REQ_MODE" ]] || exec_from_config DEFAULT
+
+# Verify that all data is given
+[[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
+[[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
+
+if [[ "$REQ_MODE" != "status" ]] && ! (( QUIET )); then
+	report_notice "Using interface: $INTERFACE"
+fi
+
+write_runfile_outer
+case "$REQ_MODE" in
+	halt|suspend)
+		systemd_run stop
+		;;
+	continuous|once)
+		# Actually, all these targets boil down to reading the run-file.
+		if systemd_run --quiet is-active; then
+			systemd_run reload
+		else
+			systemd_run start
+		fi
+		;;
+	*)
+		quit 1 "Unsupported target \"$REQ_MODE\""
+		;;
+esac
