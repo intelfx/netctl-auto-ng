@@ -137,23 +137,27 @@ function exec_from_config() {
 	fi
 }
 
-function prepare_config() {
+function prepare_wpa_config() {
 	report_debug "Building wpa_supplicant configuration for $INTERFACE"
-	WPA_CONF="$(make_wpa_config_file $INTERFACE)"
 
-	if [[ -n "${AUTO_PROFILES}" ]]; then
-		for prof in "${AUTO_PROFILES[@]}"; do echo "$prof"; done
-	else
-		list_profiles
-	fi | while read profile; do
+	### from netctl:netctl-auto -- WPA config generation
+
+	if ! WPA_CONF=$(wpa_make_config_file "$INTERFACE"); then
+		return 1
+	fi
+
+	list_profiles | while read -r profile; do
+		report_debug "Examining profile '$profile'"
 		(
-		load_profile "$profile"
+		  source "$PROFILE_DIR/$profile"
+		  [[ $Interface == "$INTERFACE" ]] || exit 1
+		  is_yes "${ExcludeAuto:-no}" && exit 1
+		  [[ $Connection != "wireless" ]] && exit 1
+		  : ${Security:=none}
+		  [[ $Security == "wpa-config" ]] && exit 1
 
-		[[ "$CONNECTION" != "wireless" ]] && exit 1
-		[[ "$SECURITY" == "wpa-config" ]] && exit 1
-
-		SECURITY="${SECURITY:-none}"
-		printf "network={\n%s\nid_str=\"%s\"\n}\n" "$(make_wpa_config)" "$profile" >> $WPA_CONF
+		  echo "network={ $(wpa_make_config_block) id_str=\"$profile\" }" >> "$WPA_CONF"
+		  report_notice "Included profile '$profile'"
 		)
 	done
 }
@@ -201,6 +205,56 @@ function do_runfile() {
 	fi
 }
 
+# Network-related functions
+# NOTE: taken from netctl:src/lib/network
+# TODO: reuse them directly (mail maintainers to separate functions from main code)
+#
+
+## Check if a string represents a network interface
+# $1: potential interface name
+is_interface() {
+	# Strip any old school alias specifier
+	[[ -d "/sys/class/net/${1%%:?*}" ]]
+}
+
+## Check if an interface is up
+# $1: interface name
+interface_is_up() {
+	local flags
+	read flags < "/sys/class/net/${1%%:?*}/flags"
+	# IFF_UP is defined as 0x1 in linux/if.h
+	(( flags & 0x1 ))
+}
+
+## Activate an interface
+# $1: interface name
+bring_interface_up() {
+	local interface=$1
+	ip link set dev "$interface" up &>/dev/null
+	timeout_wait "${TimeoutUp:-5}" 'interface_is_up "$interface"'
+}
+
+## Deactivate an interface
+# $1: interface name
+bring_interface_down() {
+	local interface=$1
+	ip addr flush dev "$interface" &>/dev/null
+	ip link set dev "$interface" down &>/dev/null
+	# We reuse the up timeout (down normally is faster)
+	timeout_wait "${TimeoutUp:-5}" '! interface_is_up "$interface"'
+}
+
+## Deactivate an interface and its RF killswitch
+# NOTE: my own addition, not from netctl
+# $1: interface name
+bring_interface_down_with_rfkill() {
+	bring_interface_down "$@" || return "$?"
+
+	if [[ $RFKill ]]; then
+		disable_rf "$interface" "$RFKill"
+	fi
+}
+
 # Main logic functions
 #
 
@@ -231,55 +285,88 @@ function status() {
 }
 
 function stop() {
-	report_debug "Stopping $INTERFACE at $WPA_CTRL_PATH"
+	report_debug "Stopping interface '$INTERFACE'"
 
 	write_runfile
 
-	# Load interface specific config
-	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
+	### from netctl:lib/connections/wireless -- wireless stop
 
-	netctl -D "$INTERFACE"
-	timeout_wait 1 '[[ ! -f "$ACTIOND_PIDFILE" ]]' || kill $(< "$ACTIOND_PIDFILE")
-	stop_wpa "$INTERFACE"
-	if [[ "$RFKILL" == "soft" ]]; then
-		set_rf_state "$INTERFACE" disabled "$RFKILL_NAME"
-	fi
+	# FIXME: find out profile name somehow and call ip_unset for it.
+
+	wpa_stop "$INTERFACE"
+	timeout_wait 1 '[[ ! -e "$ACTIOND_PIDFILE" ]]' || kill $(< "$ACTIOND_PIDFILE" )
+	bring_interface_down_with_rfkill "$INTERFACE"
 }
 
 function reconfigure() {
-	report_debug "Reconfiguring $INTERFACE"
+	report_debug "Reconfiguring interface '$INTERFACE'"
 
-	# Load interface specific config
-	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
+	if ! interface_is_up "$INTERFACE" && ! is_yes "${ForceConnect:-no}"; then
+		quit 3 "The interface '$INTERFACE' is not up"
+	fi
 
-	prepare_config
-	wpa_reconfigure "$INTERFACE"
+	# Generate the configuration
+	if ! prepare_wpa_config; then
+		quit 1 "Could not create the configuration file for interface '$INTERFACE'"
+	fi
+
+	wpa_call "$INTERFACE" reconfigure > /dev/null
 }
 
 function start() {
-	report_debug "Starting $INTERFACE"
+	report_debug "Starting on interface '$INTERFACE'"
 
-	# Load interface specific config
-	[[ -f "$IFACE_DIR/$INTERFACE" ]] && source "$IFACE_DIR/$INTERFACE"
+	### from netctl:lib/network -- overall start
 
-	netctl -D "$INTERFACE"
+	if interface_is_up "$INTERFACE" && ! is_yes "${ForceConnect:-no}"; then
+		quit 3 "The interface '$INTERFACE' is already up"
+	fi
 
-	# Kill any existing wpa_supplicant on this interface
-	stop_wpa "$INTERFACE"
+	### from netctl:lib/connections/wireless, netctl:netctl-auto -- wireless-specific start
 
-	# Do PRE_UP
-	( eval $PRE_UP ) || { quit 3 "PRE_UP failed"; }
-	enable_rf "$INTERFACE" "$RFKILL" "$RFKILL_NAME" || { quit 3 "Failed to enable radio (rfkill)"; }
+	# Default settings
+	: ${WPADriver:=nl80211,wext}
+	WPAOptions+=" -W"
+	: ${TimeoutWPA:=15}
 
-	prepare_config
+	if [[ $RFKill ]]; then
+		if ! enable_rf "$INTERFACE" "$RFKill"; then
+			quit 3 "Could not enable RF on interface '$INTERFACE'"
+		fi
+	fi
 
-	start_wpa "$INTERFACE" "$WPA_CONF" "${WPA_DRIVER:-nl80211,wext}" "-W $WPA_OPTS" \
-		&& check_pidfile "$SUPPLICANT_PIDFILE" \
-		|| { quit 3 "Failed to start wpa_supplicant"; }
+	# Kill any lingering WPA supplicants
+	WPAConfigFile= wpa_stop "$INTERFACE" &> /dev/null
 
-	eval $AUTOWIFI -p "$WPA_CTRL_PATH" -i "$INTERFACE" -P "$ACTIOND_PIDFILE" -a "$ACTION_SCRIPT" \
-		&& check_pidfile "$ACTIOND_PIDFILE" \
-		|| { quit 3 "Failed to start wpa_actiond"; }
+	# Generate the configuration
+	if ! prepare_wpa_config; then
+		bring_interface_down_with_rfkill "$INTERFACE"
+		quit 1 "Could not create the configuration file for interface '$INTERFACE'"
+	fi
+
+	# Start the WPA supplicant
+	if ! wpa_start "$INTERFACE" "$WPADriver" "$WPA_CONF" || \
+	   ! check_pidfile "$SUPPLICANT_PIDFILE"; then
+		bring_interface_down_with_rfkill "$INTERFACE"
+		quit 3 "The WPA supplicant did not start for interface '$INTERFACE'"
+	fi
+
+	# Bring interface up after starting wpa_supplicant
+	# This is important since cards such as iwl3945 do not support
+	# mode switching when they are already up.
+	if ! bring_interface_up "$INTERFACE"; then
+		wpa_stop "$INTERFACE"
+		bring_interface_down_with_rfkill "$INTERFACE"
+		quit 3 "Could not bring the interface '$INTERFACE' up"
+	fi
+
+	# Start the wpa_actiond.
+	if ! "$AUTOWIFI" -p "$WPA_CTRL_PATH" -i "$INTERFACE" -a "$ACTION_SCRIPT" -P "$ACTIOND_PIDFILE" || \
+	   ! check_pidfile "$ACTIOND_PIDFILE"; then
+		wpa_stop "$INTERFACE"
+		bring_interface_down_with_rfkill "$INTERFACE"
+		quit 3 "The wpa_actiond did not start for interface '$INTERFACE'"
+	fi
 }
 
 # Power management functions
