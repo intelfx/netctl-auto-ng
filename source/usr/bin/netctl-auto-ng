@@ -1,7 +1,5 @@
 #!/bin/bash
 
-. /usr/lib/network/auto-ng.functions
-
 function usage() {
 	cat << END
 netctl-auto-wireless: An extended automatic wireless management script.
@@ -74,6 +72,8 @@ Configuration files:
 	Network profiles directory: /etc/network.d
 END
 }
+
+. /usr/lib/network/auto-ng.functions
 
 # Main execution flow
 #
