@@ -15,15 +15,13 @@ HALT_SCRIPT="$STATE_DIR/netctl-auto-wireless-ng.suspend-script"
 MODE_FILE="$STATE_DIR/netctl-auto-wireless-ng.mode"
 [[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
 
-function onexit() {
-	if [[ -r "$HALT_SCRIPT" ]]; then
-		if [[ "$action" == "DISCONNECT" && "$MODE" == "once" ]]; then
-				source "$HALT_SCRIPT"
-		fi
-	fi
+function execute_halt_script() {
+	[[ -r "$HALT_SCRIPT" ]] && source "$HALT_SCRIPT"
 }
 
-trap "onexit" EXIT
+if [[ "$action" == "DISCONNECT" && "$MODE" == "once" ]]; then
+	trap "execute_halt_script" EXIT
+fi
 
 case $action in
 	CONNECT)
@@ -34,26 +32,34 @@ case $action in
 		dhcpcd -qL -t "${TimeoutDHCP:-10}" $DhcpcdOptions -K "$interface"
 		exit $?
 	fi
+
 	DhcpcdOptions+=" -K"
 	ip_set || exit 1
+
 	# JP: sandbox the eval
 	if ! ( eval $ExecUpPost ); then
 		# Failing ExecUpPost will take the connection down
-		# TODO: take the connection down
+		execute_halt_script
 		exit 1
 	fi
 	;;
+
 	DISCONNECT)
 	if [[ -z $profile ]]; then
 		dhcpcd -k "$interface"
 		exit $?
 	fi
+
 	# JP: sandbox the eval
 	if ! ( eval $ExecDownPre ); then
+		# Failing ExecDownPre should prevent us from taking the connection fully down
+		unset HALT_SCRIPT
 		exit 1
 	fi
+
 	ip_unset
 	;;
+
 	LOST|REESTABLISHED)
 	# Not handled.
 	exit 0
