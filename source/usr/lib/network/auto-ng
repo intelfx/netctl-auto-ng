@@ -10,6 +10,11 @@ INNER=1
 # Verify that all data is given
 [[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
 [[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
+is_interface "$INTERFACE" || quit 1 "Interface '$INTERFACE' does not exist"
+
+if [[ -x "$PROFILE_DIR/interfaces/$INTERFACE" ]]; then
+	source "$PROFILE_DIR/interfaces/$INTERFACE"
+fi
 
 ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
 SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
