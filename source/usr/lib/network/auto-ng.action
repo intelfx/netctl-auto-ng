@@ -1,80 +1,65 @@
 #! /bin/bash
 
+. /usr/lib/network/globals
+. "$SUBR_DIR/ip"
+
 interface="$1"
 ssid="$2"
 profile="$3"
 action="$4"
 
-. /usr/lib/network/network
+# Is it possible that we don't get a profile?!
 [[ "$profile" ]] && load_profile "$profile"
 
 HALT_SCRIPT="$STATE_DIR/netctl-auto-wireless-ng.suspend-script"
 MODE_FILE="$STATE_DIR/netctl-auto-wireless-ng.mode"
 [[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
 
-function do_exit() {
-	if (( $1 )) || [[ "$action" = "DISCONNECT" ]]; then
-		if [[ "$MODE" = "once" ]]; then
-			source "$HALT_SCRIPT"
+function onexit() {
+	if [[ -r "$HALT_SCRIPT" ]]; then
+		if [[ "$action" == "DISCONNECT" && "$MODE" == "once" ]]; then
+				source "$HALT_SCRIPT"
 		fi
 	fi
-	exit $1
 }
 
-function do_exit_on_signal() {
-	report_err "Caught a signal, exiting from the wpa_actiond handler"
-	do_exit 1
-}
-
-EXIT_SIGNALS=(TERM HUP INT QUIT)
-trap "do_exit_on_signal" "${EXIT_SIGNALS[@]}"
+trap "onexit" EXIT
 
 case $action in
 	CONNECT)
-		if [[ -z $profile ]]; then
-			report_err "CONNECT without profile, trying dhcpcd as a fallback"
-			# Load interface specific config
-			[[ -f "$IFACE_DIR/$interface" ]] && source "$IFACE_DIR/$interface"
-			dhcpcd -qL -t "${DHCP_TIMEOUT:-10}" -K $DHCP_OPTIONS "$interface"
-			do_exit $?
+	if [[ -z $profile ]]; then
+		if [[ -x "$PROFILE_DIR/interfaces/$interface" ]]; then
+			source "$PROFILE_DIR/interfaces/$interface"
 		fi
-		if ! DHCPCD_INTERNAL_OPTIONS="-K" $CONN_DIR/ethernet up "$profile"; then
-			"$CONN_DIR/$ethernet" down "$profile"
-			do_exit 1
-		fi
-		if ! ( eval $POST_UP ); then	# JP: sandbox the eval
-			# failing POST_UP will take interface down
-			"$CONN_DIR/$ethernet" down "$profile"
-			do_exit 1
-		fi
-		set_profile up "$profile"
-		;;
+		dhcpcd -qL -t "${TimeoutDHCP:-10}" $DhcpcdOptions -K "$interface"
+		exit $?
+	fi
+	DhcpcdOptions+=" -K"
+	ip_set || exit 1
+	# JP: sandbox the eval
+	if ! ( eval $ExecUpPost ); then
+		# Failing ExecUpPost will take the connection down
+		# TODO: take the connection down
+		exit 1
+	fi
+	;;
 	DISCONNECT)
-		if [[ -z $profile ]]; then
-			report_err "DISCONNECT without profile, trying dhcpcd as a fallback"
-			dhcpcd -k "$interface"
-			do_exit 1
-		fi
-		if ! ( eval $PRE_DOWN ); then   # JP: sandbox the eval
-			do_exit 1
-		fi
-		if ! "$CONN_DIR/ethernet" down "$profile"; then
-			do_exit 1
-		fi
-		if ! ( eval $POST_DOWN ); then  # JP: sandbox the eval
-			do_exit 1
-		fi
-		set_profile down "$profile"
-		;;
+	if [[ -z $profile ]]; then
+		dhcpcd -k "$interface"
+		exit $?
+	fi
+	# JP: sandbox the eval
+	if ! ( eval $ExecDownPre ); then
+		exit 1
+	fi
+	ip_unset
+	;;
 	LOST|REESTABLISHED)
-		# Not handled.
-		do_exit 0
-		;;
+	# Not handled.
+	exit 0
+	;;
 	*)
-		# ???
-		do_exit 1
-		;;
+	# ???
+	exit 1
+	;;
 esac
-
-do_exit $?
-
