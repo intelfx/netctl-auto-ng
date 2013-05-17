@@ -6,9 +6,9 @@ BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
 
 [Service]
-ExecStart=/usr/lib/network/network bootup %i
-ExecStop=/usr/lib/network/network halt %i
-ExecReload=/usr/lib/network/network reconfigure %i
+ExecStart=/usr/lib/network/auto-ng bootup %i
+ExecStop=/usr/lib/network/auto-ng halt %i
+ExecReload=/usr/lib/network/auto-ng reconfigure %i
 Type=forking
 PIDFile=/run/wpa_actiond_%i.pid
 KillMode=none
