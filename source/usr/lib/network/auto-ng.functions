@@ -64,9 +64,6 @@ function systemd_run() {
 
 # Status reporting primitives
 #
-align_column=25
-[[ -t 1 ]] && align_separator="$(tput hpa $align_column)"
-
 function quit() {
 	if (( $1 )); then
 		report_fail "$2"
@@ -79,13 +76,19 @@ function quit() {
 function report_aligned() {
 	(( QUIET )) && return
 
-	local sep="$align_separator"
+	local align_column=25
 	local left_margin="${3:-0}"
 	local key_len="$(( ${#1} + left_margin ))"
 
-	[[ -z "$sep" ]] && sep="$( printf "%$(( align_column - key_len - 2 ))s" )"
+	local separator
+	if [[ -t 1 ]]; then
+		separator="$( tput hpa $align_column )"
+	else
+		separator="$( printf "%$(( align_column - key_len - 2 ))s" )"
+	fi
+
 	echo -n "$( printf "%${left_margin}s" )"
-	report_notice "${1}: ${sep}${2}"
+	report_notice "${1}: ${separator}${2}"
 }
 
 # Helpers for reporting status
