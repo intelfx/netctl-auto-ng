@@ -55,9 +55,8 @@ Interface specification:
 	A single network interface may or may not be specified.
 
 	If specified, it overrides any other setting.
-	Otherwise, the interface name is read from the following places:
+	Otherwise, the interface name is read from the following place:
 	- /run/network/netctl-auto-wireless-ng.interfaces
-	- /etc/conf.d/netctl (\$WIRELESS_INTERFACE)
 
 Exit codes:
 	0: done or nothing to do
@@ -80,7 +79,7 @@ END
 
 # Load fallback interface, if needed
 if [[ -z "$INTERFACE" ]]; then
-	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")" || INTERFACE="$WIRELESS_INTERFACE"
+	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")"
 	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
 fi
 
