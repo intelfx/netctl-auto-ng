@@ -2,7 +2,7 @@
 
 INNER=1
 
-. /usr/lib/network/auto-ng.action
+. /usr/lib/network/auto-ng.functions
 
 # Main execution flow
 #

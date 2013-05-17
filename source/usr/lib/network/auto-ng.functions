@@ -3,9 +3,8 @@
 # Primary debug hook
 [[ -e "/tmp/.netctl-auto-wireless-debug" ]] && { QUIET=0; NETCTL_DEBUG=1; }
 
-. /usr/lib/network/network
-. "$SUBR_DIR/wpa"
-. "$SUBR_DIR/rfkill"
+. /usr/lib/network/globals
+. "$CONN_DIR/wireless"
 
 NAW_VERSION=unpackaged
 
