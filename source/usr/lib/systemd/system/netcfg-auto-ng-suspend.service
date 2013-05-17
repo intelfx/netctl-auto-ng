@@ -1,5 +1,5 @@
 [Unit]
-Description=Suspend netctl-auto-wireless-ng upon sleep
+Description=Suspend netctl-auto-ng upon sleep
 PartOf=sleep.target
 
 [Service]

@@ -2,7 +2,7 @@
 
 function usage() {
 	cat << END
-netctl-auto-wireless: An extended automatic wireless management script.
+netctl-auto-ng: An extended automatic wireless management script.
 
 Usage:
 	$(basename "$0") [OPTIONS] <target> [interface]
@@ -56,7 +56,7 @@ Interface specification:
 
 	If specified, it overrides any other setting.
 	Otherwise, the interface name is read from the following place:
-	- /run/network/netctl-auto-wireless-ng.interfaces
+	- /run/network/netctl-auto-ng.interfaces
 
 Exit codes:
 	0: done or nothing to do
@@ -66,7 +66,7 @@ Exit codes:
 	4: timeout/abort while waiting for an established connection ("once" mode)
 
 Configuration files:
-	Native configuration file:  /etc/conf.d/netctl-auto-wireless
+	Native configuration file:  /etc/conf.d/netctl-auto-ng
 	Netcfg configuration file:  /etc/conf.d/netctl
 	Network profiles directory: /etc/network.d
 END

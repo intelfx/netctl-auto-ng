@@ -11,8 +11,8 @@ action="$4"
 # Is it possible that we don't get a profile?!
 [[ "$profile" ]] && load_profile "$profile"
 
-HALT_SCRIPT="$STATE_DIR/netctl-auto-wireless-ng.suspend-script"
-MODE_FILE="$STATE_DIR/netctl-auto-wireless-ng.mode"
+HALT_SCRIPT="$STATE_DIR/netctl-auto-ng.suspend-script"
+MODE_FILE="$STATE_DIR/netctl-auto-ng.mode"
 [[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
 
 function execute_halt_script() {

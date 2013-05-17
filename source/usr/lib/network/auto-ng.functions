@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Primary debug hook
-[[ -e "/tmp/.netctl-auto-wireless-debug" ]] && { QUIET=0; NETCTL_DEBUG=1; }
+[[ -e "/tmp/.netctl-auto-ng-debug" ]] && { QUIET=0; NETCTL_DEBUG=1; }
 
 . /usr/lib/network/globals
 . "$CONN_DIR/wireless"
@@ -11,18 +11,17 @@ NAW_VERSION=unpackaged
 AUTOWIFI="/usr/sbin/wpa_actiond"
 ACTION_SCRIPT="/usr/lib/network/auto-ng.action"
 WPA_CTRL_PATH="/run/wpa_supplicant"
-CONFIG="/etc/conf.d/netctl-auto-wireless"
-GLOBAL_CONFIG="/etc/conf.d/netctl"
+CONFIG="/etc/conf.d/netctl-auto-ng"
 
-HALT_SCRIPT="$STATE_DIR/netctl-auto-wireless-ng.suspend-script"
-MODE_FILE="$STATE_DIR/netctl-auto-wireless-ng.mode"
-INTERFACES_FILE="$STATE_DIR/netctl-auto-wireless-ng.interfaces"
-STATE_FILE="$STATE_DIR/netctl-auto-wireless-ng.state"
-LOCK_FILE="$STATE_DIR/netctl-auto-wireless-ng.lock"
-RUN_FILE="$STATE_DIR/netctl-auto-wireless-ng.run"
+HALT_SCRIPT="$STATE_DIR/netctl-auto-ng.suspend-script"
+MODE_FILE="$STATE_DIR/netctl-auto-ng.mode"
+INTERFACES_FILE="$STATE_DIR/netctl-auto-ng.interfaces"
+STATE_FILE="$STATE_DIR/netctl-auto-ng.state"
+LOCK_FILE="$STATE_DIR/netctl-auto-ng.lock"
+RUN_FILE="$STATE_DIR/netctl-auto-ng.run"
 
 function version() {
-	echo "netctl-auto-wireless $NAW_VERSION"
+	echo "netctl-auto-ng $NAW_VERSION"
 }
 
 # Locking and PID-files
@@ -58,7 +57,7 @@ function check_pidfile() {
 #
 
 function systemd_run() {
-	local SYSTEMD_UNIT="netctl-auto-wireless-ng@${INTERFACE}.service"
+	local SYSTEMD_UNIT="netctl-auto-ng@${INTERFACE}.service"
 	systemctl "$@" "$SYSTEMD_UNIT"
 }
 
