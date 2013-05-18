@@ -102,13 +102,15 @@ function outer_routine() {
 
 if ! (( "${#INTERFACES[@]}" )); then
 	case "$REQ_MODE" in
-		suspend)
+		suspend|halt|reconfigure|status)
 			INTERFACES=( $( list_interfaces_in_state running ) )
 			;;
 		resume)
 			INTERFACES=( $( list_interfaces_in_state suspended ) )
 			;;
 	esac
+	
+	report_notice "Using default list of interfaces for $REQ_MODE (${INTERFACES[*]})"
 fi
 
 for interface in "${INTERFACES[@]}"; do
