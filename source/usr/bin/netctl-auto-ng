@@ -100,6 +100,17 @@ function outer_routine() {
 # Main execution flow
 #
 
+if ! (( "${#INTERFACES[@]}" )); then
+	case "$REQ_MODE" in
+		suspend)
+			INTERFACES=( $( list_interfaces_in_state running ) )
+			;;
+		resume)
+			INTERFACES=( $( list_interfaces_in_state suspended ) )
+			;;
+	esac
+fi
+
 for interface in "${INTERFACES[@]}"; do
 	(
 	load_interface "$interface"
