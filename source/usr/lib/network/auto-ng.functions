@@ -159,6 +159,8 @@ function prepare_wpa_config() {
 		  report_notice "Included profile '$profile'"
 		)
 	done
+
+	return 0
 }
 
 function write_runfile() {
