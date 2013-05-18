@@ -23,8 +23,10 @@ LOCKTIMEOUT=10
 EXIT_SIGNALS=(TERM HUP INT QUIT)
 
 function release_lock() {
-	report_debug "Dropping lock $LOCK_FILE"
-	exec 4<&-
+	if ! (( NOLOCK )); then
+		report_debug "Dropping lock $LOCK_FILE"
+		exec 4<&-
+	fi
 }
 
 function do_trap() {
@@ -33,12 +35,13 @@ function do_trap() {
 }
 
 function do_lock() {
-	report_debug "Locking file $LOCK_FILE"
-	touch "$LOCK_FILE"
-	exec 4<"$LOCK_FILE"
-	flock -x -w "$LOCKTIMEOUT" 4
-	trap release_lock 0
-	return "$?"
+	if ! (( NOLOCK )); then
+		report_debug "Locking file $LOCK_FILE"
+		touch "$LOCK_FILE"           || return $?
+		exec 4<"$LOCK_FILE"          || return $?
+		flock -x -w "$LOCKTIMEOUT" 4 || return $?
+		trap release_lock 0
+	fi
 }
 
 function check_pidfile() {
@@ -697,7 +700,5 @@ function load_interface() {
 		quit 2 "Shall be run as root"
 	fi
 
-	if ! (( NOLOCK )); then
-		do_lock || quit 2 "Could not acquire the lock"
-	fi
+	do_lock || quit 2 "Could not acquire the lock"
 }
