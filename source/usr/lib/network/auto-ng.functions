@@ -13,13 +13,6 @@ ACTION_SCRIPT="/usr/lib/network/auto-ng.action"
 WPA_CTRL_PATH="/run/wpa_supplicant"
 CONFIG="/etc/conf.d/netctl-auto-ng"
 
-HALT_SCRIPT="$STATE_DIR/netctl-auto-ng.suspend-script"
-MODE_FILE="$STATE_DIR/netctl-auto-ng.mode"
-INTERFACES_FILE="$STATE_DIR/netctl-auto-ng.interfaces"
-STATE_FILE="$STATE_DIR/netctl-auto-ng.state"
-LOCK_FILE="$STATE_DIR/netctl-auto-ng.lock"
-RUN_FILE="$STATE_DIR/netctl-auto-ng.run"
-
 function version() {
 	echo "netctl-auto-ng $NAW_VERSION"
 }
@@ -497,7 +490,7 @@ function parse_parameters() {
 			*)
 				if ! parse_shortmode "$parameter"; then
 					if is_interface "$parameter"; then
-						INTERFACE="$parameter"
+						INTERFACES+=( "$parameter" )
 					else
 						report_error "\"$parameter\" is neither an existing interface nor a known target";
 						echo ""
@@ -523,132 +516,158 @@ eval set -- $OPTS
 # Configs
 [[ -r "$CONFIG" ]] && source "$CONFIG" || report_error "cannot read the configuration file: $CONFIG"
 
-# Read variables
-[[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
-[[ -r "$STATE_FILE" ]] && STATE=$(< "$STATE_FILE") || STATE="halted"
 REQ_STATE="halted"
 REQ_MODE=""
+declare -ga INTERFACES
 
 # Parse parameters
 parse_parameters "$@" || exit 1
-
-# Load fallback interface, if needed
-if [[ -z "$INTERFACE" ]]; then
-	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")"
-	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
-fi
 
 # Load default command, if needed
 [[ -n "$REQ_MODE" ]] || exec_from_config DEFAULT
 
 # Verify that all data is given
 [[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
-[[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
-is_interface "$INTERFACE" || quit 1 "Interface '$INTERFACE' does not exist"
 
-# Load interface-specific data
-if [[ -x "$PROFILE_DIR/interfaces/$INTERFACE" ]]; then
-	source "$PROFILE_DIR/interfaces/$INTERFACE"
-fi
+# Multi-interface support routines
+#
 
-ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
-SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
+function list_state_files() {
+	find "$STATE_DIR" -mindepth 1 -maxdepth 1 -type f -name 'netctl-auto-ng-*.state'
+}
 
-# Systemd reports daemons as "stopped" when they are in process of shutting down.
-# Handle this.
-# Actually, systemd does not commit a stop if a service was not running, so it is relatively safe
-# to assume that we were running if called from the systemd stop/halt sequence.
-if systemd_run --quiet is-active || (( _IS_HALTING )); then
+function list_interfaces_in_state() {
+	while read file; do
+		[[ "$(< "$file" )" == "$1" ]] && echo "$( basename "$file" )"
+	done < <(list_state_files) | sed -re 's/^netctl-auto-ng-(.*)\.state$/\1/'
+}
 
-	report_debug "Systemd status: ACTIVE"
-	_IS_RUNNING=1
+# WARNING: operation for each interface (beginning with a call to load_interface)
+# is supposed to be placed inside own sub-shell, since the code
+# a) alters decoded parameters as it proceeds, and
+# b) uses "exit" to terminate execution in case of errors.
+function load_interface() {
+	[ -n "$1" ]       || quit 1 "Interface name is empty"
+	is_interface "$1" || quit 1 "Interface '$1' does not exist"
 
-else
-	report_debug "Systemd status: STOPPED"
-fi
+	# Global interface-specific variables
+	INTERFACE="$1"
+	local STATE_FILE_PREFIX="netctl-auto-ng-$INTERFACE"
 
-# Fix $STATE if needed
-case "$STATE" in
-	running)
-		if (( _IS_RUNNING )); then
-			_DAEMON_STATE="running"
-			_DAEMON_REPORT="report_notice"
-		else
-			_DAEMON_STATE="unknown stopped (resetting state-file)"
-			_DAEMON_REPORT="report_error"
-			rm "$STATE_FILE"
-			STATE="halted"
-		fi
-		;;
-	*)
-		if (( _IS_RUNNING )); then
-			_DAEMON_STATE="running (setting state-file to running)"
-			_DAEMON_REPORT="report_error"
-			echo "running" > "$STATE_FILE"
-			STATE="running"
-		else
-			_DAEMON_STATE="$STATE"
-			_DAEMON_REPORT="report_notice"
-		fi
-		;;
-esac
+	HALT_SCRIPT="$STATE_DIR/${STATE_FILE_PREFIX}.suspend-script"
+	MODE_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.mode"
+	STATE_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.state"
+	LOCK_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.lock"
+	RUN_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.run"
 
-unset _IS_HALTING _IS_RUNNING
+	ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
+	SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
 
-# Report minimal status information and check runtime status
-report_debug "Target min-state: $REQ_STATE"
+	# Read state data
+	[[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
+	[[ -r "$STATE_FILE" ]] && STATE=$(< "$STATE_FILE") || STATE="halted"
 
-if [[ "$REQ_MODE" != "status" ]] && ! (( QUIET )); then
-	eval "$_DAEMON_REPORT" "'Daemon state: ${_DAEMON_STATE} ${MODE:+(in $MODE mode)}'"
-	report_notice "Target: $REQ_MODE"
-	report_notice "Using interface: $INTERFACE"
-fi
+	# Load interface-specific data
+	if [[ -x "$PROFILE_DIR/interfaces/$INTERFACE" ]]; then
+		source "$PROFILE_DIR/interfaces/$INTERFACE"
+	fi
 
-unset _DAEMON_STATE _DAEMON_REPORT
+	# Systemd reports daemons as "stopped" when they are in process of shutting down.
+	# Handle this.
+	# Actually, systemd does not commit a stop if a service was not running, so it is relatively safe
+	# to assume that we were running if called from the systemd stop/halt sequence.
+	if systemd_run --quiet is-active || (( _IS_HALTING )); then
 
-# Set requirements and perform actions for special targets
-case "$REQ_MODE" in
-	reconfigure)
-		REQ_STATE="running"
-		old_mode
-		;;
-	resume)
-		REQ_STATE="suspended"
-		old_mode
-		;;
-	last)
-		old_mode
-		;;
-	suspend)
-		REQ_STATE="running"
-		;;
-	halt)
-		[[ "$STATE" = "halted" ]] && noop
-		;;
-	noop)
-		noop
-		;;
-	status)
-		status
-		exit 0
-		;;
-esac
+		report_debug "Systemd status: ACTIVE"
+		_IS_RUNNING=1
 
-# Check for requirements
-case "$REQ_STATE" in
-	running)
-		[[ "$STATE" = "halted" || "$STATE" = "suspended" ]] && ignore_req
-		;;
-	suspended)
-		[[ "$STATE" = "halted" ]] && ignore_req
-		;;
-esac
+	else
+		report_debug "Systemd status: STOPPED"
+	fi
 
-# Privileges and locking
-if (( UID )); then
-	quit 2 "Shall be run as root"
-fi
+	# Fix $STATE if needed
+	case "$STATE" in
+		running)
+			if (( _IS_RUNNING )); then
+				_DAEMON_STATE="running"
+				_DAEMON_REPORT="report_notice"
+			else
+				_DAEMON_STATE="unknown stopped (resetting state-file)"
+				_DAEMON_REPORT="report_error"
+				rm "$STATE_FILE"
+				STATE="halted"
+			fi
+			;;
+		*)
+			if (( _IS_RUNNING )); then
+				_DAEMON_STATE="running (setting state-file to running)"
+				_DAEMON_REPORT="report_error"
+				echo "running" > "$STATE_FILE"
+				STATE="running"
+			else
+				_DAEMON_STATE="$STATE"
+				_DAEMON_REPORT="report_notice"
+			fi
+			;;
+	esac
 
-if ! (( NOLOCK )); then
-	do_lock || quit 2 "Could not acquire the lock"
-fi
+	unset _IS_HALTING _IS_RUNNING
+
+	# Report minimal status information and check runtime status
+	report_debug "Target min-state: $REQ_STATE"
+
+	if [[ "$REQ_MODE" != "status" ]] && ! (( QUIET )); then
+		report_notice "Using interface: $INTERFACE"
+		report_notice "Target: $REQ_MODE"
+		eval "$_DAEMON_REPORT" "'Daemon state: ${_DAEMON_STATE} ${MODE:+(in $MODE mode)}'"
+	fi
+
+	unset _DAEMON_STATE _DAEMON_REPORT
+
+	# Set requirements and perform actions for special targets
+	case "$REQ_MODE" in
+		reconfigure)
+			REQ_STATE="running"
+			old_mode
+			;;
+		resume)
+			REQ_STATE="suspended"
+			old_mode
+			;;
+		last)
+			old_mode
+			;;
+		suspend)
+			REQ_STATE="running"
+			;;
+		halt)
+			[[ "$STATE" = "halted" ]] && noop
+			;;
+		noop)
+			noop
+			;;
+		status)
+			status
+			exit 0
+			;;
+	esac
+
+	# Check for requirements
+	case "$REQ_STATE" in
+		running)
+			[[ "$STATE" = "halted" || "$STATE" = "suspended" ]] && ignore_req
+			;;
+		suspended)
+			[[ "$STATE" = "halted" ]] && ignore_req
+			;;
+	esac
+
+	# Privileges and locking
+	if (( UID )); then
+		quit 2 "Shall be run as root"
+	fi
+
+	if ! (( NOLOCK )); then
+		do_lock || quit 2 "Could not acquire the lock"
+	fi
+}

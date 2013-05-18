@@ -74,23 +74,35 @@ END
 
 . /usr/lib/network/auto-ng.functions
 
+# Outer routine
+#
+
+function outer_routine() {
+	write_runfile_outer
+	case "$REQ_MODE" in
+		halt|suspend)
+			systemd_run stop
+			;;
+		continuous|once)
+			# Actually, all these targets boil down to reading the run-file.
+			if systemd_run --quiet is-active; then
+				systemd_run reload
+			else
+				systemd_run start
+			fi
+			;;
+		*)
+			quit 1 "Unsupported target \"$REQ_MODE\""
+			;;
+	esac
+}
+
 # Main execution flow
 #
 
-write_runfile_outer
-case "$REQ_MODE" in
-	halt|suspend)
-		systemd_run stop
-		;;
-	continuous|once)
-		# Actually, all these targets boil down to reading the run-file.
-		if systemd_run --quiet is-active; then
-			systemd_run reload
-		else
-			systemd_run start
-		fi
-		;;
-	*)
-		quit 1 "Unsupported target \"$REQ_MODE\""
-		;;
-esac
+for interface in "${INTERFACES[@]}"; do
+	(
+	load_interface "$interface"
+	outer_routine
+	) || exit $?
+done
