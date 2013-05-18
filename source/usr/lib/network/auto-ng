@@ -9,7 +9,6 @@ INNER=1
 
 function inner_routine() {
 	rm -f "$HALT_SCRIPT"
-	echo "$INTERFACE" > "$INTERFACES_FILE"
 
 	case "$REQ_MODE" in
 		halt)
