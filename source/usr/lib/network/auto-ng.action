@@ -14,6 +14,7 @@ action="$4"
 STATE_FILE_PREFIX="netctl-auto-ng-$interface"
 HALT_SCRIPT="$STATE_DIR/${STATE_FILE_PREFIX}.suspend-script"
 MODE_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.mode"
+PROFILE_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.profile"
 
 [[ -r "$MODE_FILE" ]] && MODE=$(< "$MODE_FILE")
 
@@ -44,6 +45,8 @@ case $action in
 		execute_halt_script
 		exit 1
 	fi
+
+	echo "$profile" > "$PROFILE_FILE"
 	;;
 
 	DISCONNECT)
@@ -60,6 +63,8 @@ case $action in
 	fi
 
 	ip_unset
+
+	rm "$PROFILE_FILE"
 	;;
 
 	LOST|REESTABLISHED)
