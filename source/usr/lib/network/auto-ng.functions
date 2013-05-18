@@ -565,7 +565,7 @@ unset _IS_HALTING _IS_RUNNING
 report_debug "Target min-state: $REQ_STATE"
 
 if [[ "$REQ_MODE" != "status" ]] && ! (( QUIET )); then
-	eval "$_DAEMON_REPORT" "'Daemon state: $_DAEMON_STATE (in $MODE mode)'"
+	eval "$_DAEMON_REPORT" "'Daemon state: ${_DAEMON_STATE} ${MODE:+(in $MODE mode)}'"
 	report_notice "Target: $REQ_MODE"
 fi
 
