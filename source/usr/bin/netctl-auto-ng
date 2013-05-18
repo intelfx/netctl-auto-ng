@@ -77,23 +77,6 @@ END
 # Main execution flow
 #
 
-# Load fallback interface, if needed
-if [[ -z "$INTERFACE" ]]; then
-	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")"
-	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
-fi
-
-# Load default command, if needed
-[[ -n "$REQ_MODE" ]] || exec_from_config DEFAULT
-
-# Verify that all data is given
-[[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
-[[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
-
-if [[ "$REQ_MODE" != "status" ]] && ! (( QUIET )); then
-	report_notice "Using interface: $INTERFACE"
-fi
-
 write_runfile_outer
 case "$REQ_MODE" in
 	halt|suspend)

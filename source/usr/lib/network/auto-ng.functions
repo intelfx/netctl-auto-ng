@@ -520,6 +520,28 @@ REQ_MODE=""
 # Parse parameters
 parse_parameters "$@" || exit 1
 
+# Load fallback interface, if needed
+if [[ -z "$INTERFACE" ]]; then
+	[[ -r "$INTERFACES_FILE" ]] && INTERFACE="$(< "$INTERFACES_FILE")"
+	is_interface "$INTERFACE" || { report_err "Saved interface $INTERFACE does not exist"; INTERFACE=""; }
+fi
+
+# Load default command, if needed
+[[ -n "$REQ_MODE" ]] || exec_from_config DEFAULT
+
+# Verify that all data is given
+[[ -n "$REQ_MODE" ]] || quit 1 "Target mode not given"
+[[ -n "$INTERFACE" ]] || quit 1 "Interface not given"
+is_interface "$INTERFACE" || quit 1 "Interface '$INTERFACE' does not exist"
+
+# Load interface-specific data
+if [[ -x "$PROFILE_DIR/interfaces/$INTERFACE" ]]; then
+	source "$PROFILE_DIR/interfaces/$INTERFACE"
+fi
+
+ACTIOND_PIDFILE="/run/wpa_actiond_$INTERFACE.pid"
+SUPPLICANT_PIDFILE="/run/wpa_supplicant_$INTERFACE.pid"
+
 # Systemd reports daemons as "stopped" when they are in process of shutting down.
 # Handle this.
 # Actually, systemd does not commit a stop if a service was not running, so it is relatively safe
@@ -567,6 +589,7 @@ report_debug "Target min-state: $REQ_STATE"
 if [[ "$REQ_MODE" != "status" ]] && ! (( QUIET )); then
 	eval "$_DAEMON_REPORT" "'Daemon state: ${_DAEMON_STATE} ${MODE:+(in $MODE mode)}'"
 	report_notice "Target: $REQ_MODE"
+	report_notice "Using interface: $INTERFACE"
 fi
 
 unset _DAEMON_STATE _DAEMON_REPORT
