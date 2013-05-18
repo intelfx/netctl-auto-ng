@@ -650,11 +650,10 @@ function load_interface() {
 	unset _IS_HALTING _IS_RUNNING
 
 	# Report minimal status information and check runtime status
-	report_debug "Target min-state: $REQ_STATE"
-
 	if [[ "$REQ_MODE" != "status" ]] && ! (( QUIET )); then
-		report_notice "Using interface: $INTERFACE"
-		report_notice "Target: $REQ_MODE"
+		(( INNER )) && report_notice "Inner layer"
+		report_notice "Interface: $INTERFACE"
+		report_notice "Target: $REQ_MODE (minimal state $REQ_STATE)"
 		eval "$_DAEMON_REPORT" "'Daemon state: ${_DAEMON_STATE} ${MODE:+(in $MODE mode)}'"
 	fi
 
