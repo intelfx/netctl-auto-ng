@@ -110,7 +110,9 @@ if ! (( "${#INTERFACES[@]}" )); then
 			;;
 	esac
 	
-	report_notice "Using default list of interfaces for $REQ_MODE (${INTERFACES[*]})"
+	if (( "${#INTEFACES[@]}" )); then
+		report_notice "Using default list of interfaces for $REQ_MODE (${INTERFACES[*]})"
+	fi
 fi
 
 for interface in "${INTERFACES[@]}"; do
