@@ -8,6 +8,9 @@
 
 NAW_VERSION=unpackaged
 
+NOLOCK=1 # locking is slow (so possibly incorrectly implemented) and must be fixed someday
+         # or not -- systemd already allows access serialization, doesn't it?..
+
 AUTOWIFI="/usr/sbin/wpa_actiond"
 ACTION_SCRIPT="/usr/lib/network/auto-ng.action"
 WPA_CTRL_PATH="/run/wpa_supplicant"
