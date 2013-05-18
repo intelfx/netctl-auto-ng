@@ -141,6 +141,10 @@ function prepare_wpa_config() {
 
 	### from netctl:netctl-auto -- WPA config generation
 
+	# HACK: wpa_make_config_file can't overwrite.
+	local WPA_CONFIG_FILE="$STATE_DIR/wpa_supplicant_${INTERFACE}.conf"
+	rm -f "$WPA_CONFIG_FILE"
+
 	if ! WPA_CONF=$(wpa_make_config_file "$INTERFACE"); then
 		return 1
 	fi
