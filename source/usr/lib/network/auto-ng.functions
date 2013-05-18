@@ -435,6 +435,9 @@ function parse_shortmode() {
 		res|resume)
 			REQ_MODE=resume
 			;;
+		l|last)
+			REQ_MODE=last
+			;;
 		rec|reconfigure)
 			# On reconfigure, we also attempt to read a run-file.
 			# This is to make mode-switching possible within systemd's cgroup.
