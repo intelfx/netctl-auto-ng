@@ -273,15 +273,18 @@ function status() {
 	[[ -e "$STATE_DIR/interfaces/$INTERFACE" ]] || return
 	report_aligned "Profile running"                      "$(< "$STATE_DIR/interfaces/$INTERFACE")"
 
-	if [[ "$1" = "wpa" ]]; then
-		shift
+	if (( WPA_STATUS )); then
 		declare -A wpa_data
 
 		while IFS='=' read key value; do
 			wpa_data["$key"]="$value"
 		done < <(wpa_cli -p "$WPA_CTRL_PATH" -i "$INTERFACE" status)
 
-		(( $# )) || set -- "${!wpa_data[@]}"
+		if (( "${#WPA_FIELDS[@]}" )); then
+			set -- "${WPA_FIELDS[@]}"
+		else
+			set -- "${!wpa_data[@]}"
+		fi
 
 		report_notice "WPA information:"
 		for key in "$@"; do
@@ -463,7 +466,15 @@ function parse_shortmode() {
 
 function parse_parameters() {
 	report_debug "Parsing parameters: $*"
-	for parameter; do
+	local _dbg_parameters="$*"
+
+	local parameter
+
+	while true; do
+		(( $# )) || break
+		parameter="$1"
+		shift
+
 		case $parameter in
 			--suspended)
 				REQ_STATE="suspended"
@@ -490,6 +501,12 @@ function parse_parameters() {
 				version
 				return 1
 				;;
+			--wpa)
+				WPA_STATUS=1
+
+				WPA_FIELDS=( ${1//,/ } )
+				shift
+				;;
 			*)
 				if ! parse_shortmode "$parameter"; then
 					if is_interface "$parameter"; then
@@ -504,7 +521,7 @@ function parse_parameters() {
 				;;
 			esac
 	done
-	report_debug "Completed parsing parameters: $*"
+	report_debug "Completed parsing parameters: $_dbg_parameters"
 	return 0
 }
 
@@ -512,7 +529,7 @@ function parse_parameters() {
 #
 
 # Parse options
-OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version,inner,nolock" -o "q" -- "$@" )
+OPTS=$( getopt -n "$0" -l "suspended,running,quiet,help,version,inner,nolock,wpa::" -o "q" -- "$@" )
 (( $? )) && exit 1
 eval set -- $OPTS
 

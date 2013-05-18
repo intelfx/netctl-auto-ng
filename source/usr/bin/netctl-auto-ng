@@ -11,6 +11,10 @@ Options:
 	-q, --quiet:     Suppress non-error messages.
 	--running:       Require the current state to be "running".
 	--suspended:     Require the current state to be "suspended" or "running".
+	--wpa <fields>:  If target is "status", also print information from
+	                 wpa_supplicant (if connected).
+	                 If field names are given after "wpa", print them only
+	                 (otherwise, print all fields).
 
 States:
 	There are three dedicated states of the script/daemon:
@@ -39,10 +43,6 @@ Targets:
 	reconfigure: Re-read network profiles.
 
 	status:      Print (pretty-print, if on terminal) the connection info.
-	status wpa:  Same as "status", but also print information from
-	             wpa_supplicant (if connected).
-				 If field names are given after "wpa", print them only
-				 (otherwise, print all fields).
 
 	bootup:      Auto-configure the daemon in a mode acceptable for a
 	             system boot sequence.
