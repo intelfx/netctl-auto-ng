@@ -18,6 +18,7 @@ NAME="netctl-auto-wireless-$VERSION"
 echo "==== Packaging script at $TAG [version $VERSION]" >&2
 
 git push --all -f
+git push --tags -f
 
 rm -rf "$DESTDIR"/{pkg,src,PKGBUILD}
 install -Dm644 "$PKGBUILD" "$DESTDIR/PKGBUILD"

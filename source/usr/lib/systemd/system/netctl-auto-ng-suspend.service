@@ -1,6 +1,7 @@
 [Unit]
 Description=Suspend netctl-auto-ng upon sleep
 PartOf=sleep.target
+StopWhenUnneeded=yes
 
 [Service]
 Type=oneshot

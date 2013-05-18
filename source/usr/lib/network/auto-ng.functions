@@ -61,6 +61,14 @@ function systemd_run() {
 	systemctl "$@" "$SYSTEMD_UNIT"
 }
 
+function systemd_list_interfaces() {
+	LC_ALL=C systemctl -t service --no-legend --no-pager "$@" list-units | while read unit load active sub description; do
+		if [[ "$unit" =~ netctl-auto-ng@(.*)\.service ]]; then
+			echo "${BASH_REMATCH[1]} $active"
+		fi
+	done
+}
+
 # Status reporting primitives
 #
 function quit() {
