@@ -270,8 +270,8 @@ function status() {
 	[[ "$STATE" != "halted" ]]                  || return
 	report_aligned "Auto-wireless mode"                   "$MODE"
 	[[ "$STATE" == "running" ]]                 || return
-	[[ -r "$PROFILE_FILE" ]]                    || return
-	report_aligned "Profile running"                      "$(< "$PROFILE_FILE")"
+	[[ -e "$STATE_DIR/interfaces/$INTERFACE" ]] || return
+	report_aligned "Profile running"                      "$(< "$STATE_DIR/interfaces/$INTERFACE")"
 
 	if (( WPA_STATUS )); then
 		declare -A wpa_data
@@ -300,11 +300,7 @@ function stop() {
 
 	### from netctl:lib/connections/wireless -- wireless stop
 
-	if [[ -r "$PROFILE_FILE" ]]; then
-		load_profile "$(< "$PROFILE_FILE" )"
-		ip_unset
-	fi
-	rm -f "$PROFILE_FILE"
+	# FIXME: find out profile name somehow and call ip_unset for it.
 
 	wpa_stop "$INTERFACE"
 	timeout_wait 1 '[[ ! -e "$ACTIOND_PIDFILE" ]]' || kill $(< "$ACTIOND_PIDFILE" )
@@ -507,6 +503,7 @@ function parse_parameters() {
 				;;
 			--wpa)
 				WPA_STATUS=1
+
 				WPA_FIELDS=( ${1//,/ } )
 				shift
 				;;
@@ -579,7 +576,6 @@ function load_interface() {
 
 	HALT_SCRIPT="$STATE_DIR/${STATE_FILE_PREFIX}.suspend-script"
 	MODE_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.mode"
-	PROFILE_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.profile"
 	STATE_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.state"
 	LOCK_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.lock"
 	RUN_FILE="$STATE_DIR/${STATE_FILE_PREFIX}.run"
