@@ -270,16 +270,18 @@ function status() {
 	[[ "$STATE" != "halted" ]]                  || return
 	report_aligned "Auto-wireless mode"                   "$MODE"
 	[[ "$STATE" == "running" ]]                 || return
-	[[ -e "$STATE_DIR/interfaces/$INTERFACE" ]] || return
-	report_aligned "Profile running"                      "$(< "$STATE_DIR/interfaces/$INTERFACE")"
+
+	declare -A wpa_data
+
+	while IFS='=' read key value; do
+		wpa_data["$key"]="$value"
+	done < <(wpa_call "$INTERFACE" status)
+
+	if [[ "${wpa_data[id_str]}" ]]; then
+		report_aligned "Profile running"                  "${wpa_data[id_str]}"
+	fi
 
 	if (( WPA_STATUS )); then
-		declare -A wpa_data
-
-		while IFS='=' read key value; do
-			wpa_data["$key"]="$value"
-		done < <(wpa_cli -p "$WPA_CTRL_PATH" -i "$INTERFACE" status)
-
 		if (( "${#WPA_FIELDS[@]}" )); then
 			set -- "${WPA_FIELDS[@]}"
 		else
@@ -298,9 +300,17 @@ function stop() {
 
 	write_runfile
 
+	declare -A wpa_data
+	while IFS='=' read key value; do
+		wpa_data["$key"]="$value"
+	done < <(wpa_call "$INTERFACE" status)
+
 	### from netctl:lib/connections/wireless -- wireless stop
 
-	# FIXME: find out profile name somehow and call ip_unset for it.
+	if [[ "${wpa_data[id_str]}" ]]; then
+		load_profile "${wpa_data[id_str]}"
+		ip_unset
+	fi
 
 	wpa_stop "$INTERFACE"
 	timeout_wait 1 '[[ ! -e "$ACTIOND_PIDFILE" ]]' || kill $(< "$ACTIOND_PIDFILE" )
