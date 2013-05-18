@@ -155,7 +155,7 @@ function prepare_wpa_config() {
 		  : ${Security:=none}
 		  [[ $Security == "wpa-config" ]] && exit 1
 
-		  echo "network={ $(wpa_make_config_block) id_str=\"$profile\" }" >> "$WPA_CONF"
+          printf "%s\n" "network={" "$(wpa_make_config_block)" "id_str=\"$profile\"" "}" >> "$WPA_CONF"
 		  report_notice "Included profile '$profile'"
 		)
 	done
