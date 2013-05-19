@@ -10,6 +10,8 @@ VERSION_VAR="NAW_VERSION"
 
 echo "==== Installing script version $TAG" >&2
 
+make -C docs install DESTDIR="$DESTDIR" VERSION="$TAG"
+
 cp -afuT source "$DESTDIR"
 
 while read file; do

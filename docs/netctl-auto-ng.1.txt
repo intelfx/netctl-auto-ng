@@ -1,0 +1,275 @@
+NETCTL-AUTO-NG(1)
+=================
+
+NAME
+----
+netctl-auto-ng - an extended wireless connection management script based on
+netctl
+
+
+SYNOPSIS
+--------
+**netctl-auto-ng**(1) [*-q*|*--quiet*] [*--running*|*--suspended*] ['COMMAND'] ['INTERFACE' ...]
+
+**netctl-auto-ng**(1) [*--wpa*[='fields']] *status* ['INTERFACE' ...]
+
+**netctl-auto-ng**(1) [*--help* | *--version*]
+
+
+DESCRIPTION
+-----------
+**netctl-auto-ng**(1) can be used to manage system's wireless connections,
+performing automatic scanning and connection to available networks. It is
+based on **netctl**(1) and uses its network profiles (`/etc/netctl/*`).
+
+'COMMAND' argument to **netctl-auto-ng**(1) specifies desired mode of operation for
+each interface given. It may be omitted; in this case the default command
+is read from the config file ('NAW_CMD_DEFAULT') and executed.
+
+Each of 'INTERFACE' arguments specifies interfaces to work with. They are
+processed sequentially in command-line order. These may be omitted; in this
+case the 'default interfaces' are computed and substituted into this place.
+
+
+[[OPTIONS]]
+OPTIONS
+-------
+The following options are understood:
+
+*-q, --quiet*::
+	Do not report any status information about what is being done.
+
+*--running*::
+	Restrict operation to interfaces which are currently in `*running*' state.
+
+*--suspended*::
+	Restrict operation to interfaces which are currently in `*suspended*' or
+	`*running*' state.
+
+*--wpa*[='fields']::
+	When used with command `*status*\', report also the state of
+	*wpa_supplicant* running on given interface.
+	+
+	If comma-separated list of 'fields' is specified, then only these fields
+	are reported.
+
+*--help*::
+	Print a (pretty long) help message about available commands and options
+	and exit.
+
+*--version*::
+	Print version and exit.
+
+
+COMMANDS
+--------
+
+The following commands are understood:
+
+*continuous*::
+	Scan for networks without any timeout, connecting to wireless networks
+	when they are detected.
+	+
+	After the link is lost, scanning is resumed.
+
+*once*::
+	Do a single scan (with a configurable timeout), connecting to the first
+	found wireless network.
+	+
+	After the link is lost, the interface is suspended (this is configurable).
+
+*last*::
+	Switch to the last active mode for this interface, be it `*continuous*'
+	or `*once*'.
+
+*halt*::
+	Disconnect from any wireless network on the given interface, stop scanning
+	and bring the interface down.
+
+*status*::
+	Report **netctl-auto-ng**(1) state for the given interface, along with
+	*wpa_supplicant* state (if '--wpa' option is specified).
+
+The following meta-commands are understood:
+
+*suspend*::
+	Technically same as *--running halt*, but the state of the interface will
+	be `*suspended*\', not `*halted*'.
+	+
+	This command is executed upon start of `netctl-auto-ng-suspend.service'
+	systemd unit for each interface.
+
+*resume*::
+	Technically same as *--suspended last*. This resumes operation of the
+	interface in the last active mode, but only if the interface has been
+	stopped with `*suspend*' command.
+	+	
+	This command is executed upon stop of `netctl-auto-ng-suspend.service'
+	systemd unit for each interface.
+
+*reconfigure*::
+	Technically same as *--running last*. This effectively makes
+	**netctl-auto-ng**(1) to re-read configured network list (useful if any of
+	**netctl**(1) profiles have been added, removed or otherwise changed).
+	+
+	This command is executed upon reload of `netctl-auto-ng@.service' systemd
+	unit.
+
+*bootup*::
+	Technically this command is replaced with 'BOOT_BATTERY' or 'BOOT_AC'
+	command read from config file (depending on the power supply status).
+	This command is used to configure interface in a mode acceptable for the
+	system start-up sequence.
+	+
+	This command is executed upon start of `netctl-auto-ng@.service' systemd
+	unit.
+
+*power*::
+	Technically this command is replaced with 'SW_BATTERY' or 'SW_AC'
+	command read from config file (depending on the power supply status).
+	This command is used to configure interface in a mode acceptable for the
+	power supply change event.
+	+
+	This command is executed as part of `netctl-auto-ng' power hook for
+	**pm-powersave**(8).
+
+
+EXIT STATUS
+-----------
+On success 0 is returned, a non-zero failure code otherwise.
+
+*0*::
+	Successful execution.
+
+*1*::
+	Error while processing options or configuration files.
+
+*2*::
+	Insufficient privileges, or failed to lock the state files.
+
+*3*::
+	Failure while configuring an interface.
+
+*4*::
+	Timeout of initial scan in `*once*' mode. 
+
+
+CONCEPTS
+--------
+
+A 'state' is one of the following:
+
+*running*::
+	Interface is currently active (connected or scanning).
+
+*halted*::
+	Interface is currently inactive, and all daemons associated with it are
+	stopped.
+	+
+	This state is entered after execution of the `*halt*' command.
+
+*suspended*::
+	Technically same as *halted*.
+	+
+	This state is entered after execution of the `*suspend*' command.
+
+A 'mode' is one of *continuous* or *once*. It is entered after execution
+of the corresponding command.
+
+The 'default interfaces' (used when no interfaces are specified) are the
+following:
+
+For *halt* target:
+	All currently `*running*' interfaces.
+
+For other targets:
+	All interfaces ever used (for which a systemd unit has been instantiated).
+
+
+OPERATION
+---------
+
+This script does not do any configuration by itself. It works by writing
+decoded arguments to a file called 'run-file' and then
+starting/stopping/reloading the `netctl-auto-ng@.service' systemd unit,
+which reads the run-file before attempting to execute the default action.
+
+This way, all daemons spawned by **netctl-auto-ng**(1) stay under control of
+systemd.
+
+
+CONFIG FILE
+-----------
+
+The configuration file exists at path `/etc/conf.d/netctl-auto-ng` and is a
+plain text file following the bash shell syntax with no special restrictions.
+
+It consists of variable definitions and is not expected to execute any code
+(however, there will be no harm if it will).
+
+Command-line substitution options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Configuration keys that begin with `++NAW_CMD_++' are parsed as if they were
+command-line options to **netctl-auto-ng**(1), and are used in some specific
+situations (see <<OPTIONS,*OPTIONS*>> above).
+
+If the values are empty (or variables are commented out), the corresponding
+actions are ignored (i. e. there are no defaults).
+
+'NAW_CMD_BOOT_BATTERY='::
+	Executed when `*bootup*' command is used while system is on battery power.
+
+'NAW_CMD_BOOT_AC='::
+	Executed when `*bootup*' command is used while system is on external/AC power.
+
+'NAW_CMD_SW_BATTERY='::
+	Executed when `*power*' command is used while system is on battery power.
+
+'NAW_CMD_SW_AC='::
+	Executed when `*power*' command is used while system is on external/AC power.
+
+'NAW_CMD_ONCE_LOSS='::
+	Executed when connection is lost while interface is in `*once*' mode.
+
+'NAW_CMD_DEFAULT='::
+	Executed when no command is specified.
+
+Miscellaneous options
+~~~~~~~~~~~~~~~~~~~~~
+
+'NAW_ONCE_TIMEOUT='::
+	Maximum time, in seconds, to wait for connection to be established in
+	`*once*' mode. Defaults to `++10++'.
+
+'NAW_STATE_ONCE_FAULT='::
+	State assigned to interface if the connection could not be established in
+	`*once*' mode for specified amount of time. Defaults to `++suspended++\'.
+	+
+	Warning: the interface is always brought down, so there is no sense to
+	specify `*running*'.
+
+
+ENVIRONMENT
+-----------
+
+See **netctl**(1) for their environment.
+
+
+FILES
+-----
+
+`/etc/conf.d/netctl-auto-ng`::
+	The configuration file for **netctl-auto-ng**(1).
+
+`/tmp/.netctl-auto-ng-debug`::
+	When created, activates debug output in **netctl-auto-ng**(1).
+
+`/run/network/netctl-auto-ng-*`::
+	Various state files (some of them are per-interface).
+
+SEE ALSO
+--------
+**netctl**(1)
+
+// vim: set ts=4 sw=4 tw=78 ft=asciidoc :
