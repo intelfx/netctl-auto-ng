@@ -27,9 +27,13 @@ function inner_routine() {
 			echo "$REQ_MODE" > "$MODE_FILE"
 			if [[ "$REQ_MODE" = "once" ]]; then
 	#			(
+
+				: ${NAW_ONCE_TIMEOUT:=10}
+				: ${NAW_STATE_ONCE_FAULT:=suspended}
+
 				function onexit() {
 					stop
-					echo "${NAW_STATE_ONCE_FAULT:-suspended}" > "$STATE_FILE"
+					echo "$NAW_STATE_ONCE_FAULT" > "$STATE_FILE"
 					quit 4 "Failed waiting for a connection"
 				}
 				do_trap onexit
