@@ -19,8 +19,8 @@ Options:
 States:
 	There are three dedicated states of the script/daemon:
 	 - running   (scanning is active)
-	 - suspended (scanning is stopped, networks are disconnected)
-	 - halted    (technically same as suspended)
+	 - halted    (scanning is stopped, networks are disconnected)
+	 - suspended (technically same as halted)
 
 	Their purpose is to allow commands to the script to be skipped
 	automatically in a conditional manner (using options described above).
@@ -30,45 +30,49 @@ Targets:
 	It may be one of the following:
 
 	continuous:  Scan for networks endlessly, connecting to first found one.
+
 	once:        Scan for networks once (for a timeout), connecting to first
-	             found network and exiting as soon as the connection gets lost.
+	             found network and stopping as soon as the connection gets lost.
 
 	halt:        Stop the scanner daemon and disconnect from any network.
+
 	suspend:     Same as halt, but go to state "suspended".
 
 	last:        Go to the last active mode (either "continuous" or "once").
-	resume:      Same as last, but require the state to be "suspended".
+
+	resume:      Equals to "--suspended last".
 	             This target is made for readability.
 
-	reconfigure: Re-read network profiles.
+	reconfigure: Equals to "--running last".
+	             This target is made for readability (allows to re-read
+				 the netctl profile list).
 
-	status:      Print (pretty-print, if on terminal) the connection info.
+	status:      Print the interface info.
 
 	bootup:      Auto-configure the daemon in a mode acceptable for a
-	             system boot sequence.
-	power:       Auto-configure the daemon in a mode acceptable for a
-	             power source transition (battery <-> AC).
+	             system boot sequence (see config).
 
-	For two latest targets, see the configuration file.
+	power:       Auto-configure the daemon in a mode acceptable for a
+	             power source transition (see config).
 
 Interface specification:
-	A single network interface may or may not be specified.
+    Multiple interfaces may or may not be specified (processed sequentially).
+	If not specified, default list is taken.
 
-	If specified, it overrides any other setting.
-	Otherwise, the interface name is read from the following place:
-	- /run/network/netctl-auto-ng.interfaces
+	Default interfaces:
+	- command "halt": all running interfaces
+	- other commands: all interfaces
 
 Exit codes:
 	0: done or nothing to do
 	1: error while processing options or configuration files
 	2: unsufficient privileges or locking failed
 	3: interface init failed
-	4: timeout/abort while waiting for an established connection ("once" mode)
+	4: timeout/abort while waiting for an established connection in "once" mode
 
 Configuration files:
-	Native configuration file:  /etc/conf.d/netctl-auto-ng
-	Netcfg configuration file:  /etc/conf.d/netctl
-	Network profiles directory: /etc/network.d
+	Native configuration file: /etc/conf.d/netctl-auto-ng
+	Network profile directory: /etc/netctl
 END
 }
 
