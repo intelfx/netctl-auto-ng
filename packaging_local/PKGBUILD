@@ -2,7 +2,7 @@
 
 pkgname=netctl-auto-ng
 pkgver=%NAW_VERSION%
-url="https://github.com/intelfx/netctl-auto-ng"
+url="https://github.com/intelfx/${pkgname}"
 pkgrel=1
 pkgdesc="Extended automatic wireless management script using netctl"
 license=("GPL3")
