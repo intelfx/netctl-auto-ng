@@ -102,11 +102,14 @@ function outer_routine() {
 
 if ! (( "${#INTERFACES[@]}" )); then
 	case "$REQ_MODE" in
-		suspend|halt|reconfigure|status)
+		suspend|halt|reconfigure)
 			INTERFACES=( $( list_interfaces_in_state running ) )
 			;;
 		resume)
 			INTERFACES=( $( list_interfaces_in_state suspended ) )
+			;;
+		status|continuous|once|last)
+			INTERFACES=( $( systemd_list_interfaces --all | cut -d' ' -f1 ) )
 			;;
 	esac
 	
