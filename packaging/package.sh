@@ -20,8 +20,9 @@ echo "==== Packaging script at $TAG [version $VERSION]" >&2
 git push --all -f
 git push --tags -f
 
-rm -rf "$DESTDIR"/{pkg,src,PKGBUILD}
+rm -rf "$DESTDIR"/{pkg,src,PKGBUILD,*.install}
 install -Dm644 "$PKGBUILD" "$DESTDIR/PKGBUILD"
+install -m644 *.install "$DESTDIR"
 sed -r -e "s|\%$VERSION_VAR\%|$VERSION|" -i "$DESTDIR/PKGBUILD"
 pushd "$DESTDIR"
 makepkg -g >> PKGBUILD
