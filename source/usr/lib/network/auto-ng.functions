@@ -176,12 +176,16 @@ function prepare_wpa_config() {
 
 function write_runfile() {
 	# This writes the run-file on default halt/suspend operations.
+	report_debug "Writing run-file (default) for interface '$INTERFACE': $RUN_FILE"
+
 	rm -f "$RUN_FILE"
 	echo "$MODE" >> "$RUN_FILE"
 }
 
 function write_runfile_outer() {
 	# This writes the run-file when passing to the inner layer.
+	report_debug "Writing run-file (outer) for interface '$INTERFACE': $RUN_FILE"
+
 	rm -f "$RUN_FILE"
 	(( QUIET ))                 && echo "--quiet"      >> "$RUN_FILE"
 	[[ "$REQ_STATE" != "halted" ]] && echo "--$REQ_STATE" >> "$RUN_FILE"
@@ -207,7 +211,6 @@ function do_power() {
 function do_runfile() {
 	if (( INNER )) && [[ -r "$RUN_FILE" ]]; then
 		local CMD="$(< "$RUN_FILE" )"
-		local _IS_PARSING_RUNFILE=1
 		rm -f "$RUN_FILE"
 		report_notice "Executing run-file: $CMD"
 		parse_parameters $CMD
