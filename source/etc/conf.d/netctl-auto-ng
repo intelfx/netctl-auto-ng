@@ -1,33 +1,26 @@
-# vim: ft=sh
-
-
-### Variables that begin with NAW_DO_CMD_* are flags that say
-### whether to execute the respective command (NAW_CMD_*) at all.
+### NAW_CMD_* variables specify arguments to netctl-auto-ng
+### that are to be used in specific situations.
+###
+### If a variable does not exist (commented out) or is empty,
+### that action is inhibited.
 
 # What to execute on power management transition to battery
-NAW_DO_CMD_SW_BATTERY=1
 NAW_CMD_SW_BATTERY="--running once"
 
 # What to execute on power management transition to AC
-NAW_DO_CMD_SW_AC=1
 NAW_CMD_SW_AC="--suspended continuous"
 
 # What to execute on boot-up on battery
-NAW_DO_CMD_BOOT_BATTERY=1
 NAW_CMD_BOOT_BATTERY="once"
 
 # What to execute on boot-up on AC
-NAW_DO_CMD_BOOT_AC=1
 NAW_CMD_BOOT_AC="continuous"
 
 # What to execute on connection loss in "once" mode
-NAW_DO_CMD_ONCE_LOSS=1
 NAW_CMD_ONCE_LOSS="--quiet suspend"
 
 # What to execute when startet without parameters
-NAW_DO_CMD_DEFAULT=1
 NAW_CMD_DEFAULT="bootup"
-
 
 ### These variables are miscellaneous.
 
@@ -37,3 +30,5 @@ NAW_ONCE_TIMEOUT=10
 # To which state to go when a transition to "once" fails
 # Possible: suspended, halted
 NAW_STATE_ONCE_FAULT="suspended"
+
+# vim: ft=sh

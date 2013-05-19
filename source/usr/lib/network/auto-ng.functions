@@ -114,26 +114,15 @@ function couldnot() {
 # Auxiliary subroutines
 #
 
-function need_exec_from_config() {
-	local DO_CMD=$(eval echo '$NAW_DO_CMD_'"$1")
-	report_debug "Checking requirement of execution of command $1: variable name is NAW_DO_CMD_$1, result is $DO_CMD"
-	if (( "${DO_CMD:-0}" )); then
-		return 0
-	else
-		return 1
-	fi
-}
-
 function get_cmd_from_config() {
-	local CMD=$(eval echo '$NAW_CMD_'"$1")
+	local CMD=$(eval echo "\$NAW_CMD_$1")
 	report_debug "Querying command $1: variable name is NAW_CMD_$1, result is $CMD"
-	[[ -n "$2" ]] && CMD="$CMD $2"
 	echo "$CMD"
 }
 
 function exec_from_config() {
-	if need_exec_from_config "$1"; then
-		local CMD="$(get_cmd_from_config "$@") $INTERFACE"
+	local CMD="$(get_cmd_from_config "$1")"
+	if [[ "$CMD" ]]; then
 		report_debug "Executing self via reparse: $CMD"
 		parse_parameters $CMD
 	else
