@@ -611,13 +611,12 @@ function load_interface() {
 
 	# Systemd reports daemons as "stopped" when they are in process of shutting down.
 	# Handle this.
-	# Actually, systemd does not commit a stop if a service was not running, so it is relatively safe
-	# to assume that we were running if called from the systemd stop/halt sequence.
-	if systemd_run --quiet is-active || (( _IS_HALTING )); then
-
+	# systemd does not execute a stop command if the service was not running, so we can assume either:
+	# 1) service was running before the stop request, or
+	# 2) service has failed before the stop request (in which case systemd executes a stop command).
+	if systemd_run --quiet is-active || { (( _IS_HALTING )) && ! systemd_run --quiet is-failed; }; then
 		report_debug "Systemd status: ACTIVE"
 		_IS_RUNNING=1
-
 	else
 		report_debug "Systemd status: STOPPED"
 	fi
