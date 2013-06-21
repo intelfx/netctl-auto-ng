@@ -99,6 +99,8 @@ function outer_routine() {
 			quit 1 "Unsupported target \"$REQ_MODE\""
 			;;
 	esac
+
+	systemd_run status -n0
 }
 
 # Main execution flow
