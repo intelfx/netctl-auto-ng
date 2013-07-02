@@ -82,17 +82,19 @@ END
 #
 
 function outer_routine() {
+	local SD_ACTION
+
 	write_runfile_outer
 	case "$REQ_MODE" in
 		halt|suspend)
-			systemd_run stop
+			SD_ACTION=stop
 			;;
 		continuous|once)
 			# Actually, all these targets boil down to reading the run-file.
 			if systemd_run --quiet is-active; then
-				systemd_run reload
+				SD_ACTION=reload
 			else
-				systemd_run start
+				SD_ACTION=start
 			fi
 			;;
 		*)
@@ -100,7 +102,12 @@ function outer_routine() {
 			;;
 	esac
 
-	systemd_run status -n0
+	systemd_run "$SD_ACTION"
+
+	if ! (( QUIET )); then
+		report_notice "Done \"$SD_ACTION\" for interface \"$INTERFACE\". Current state:"
+		systemd_run status -n0
+	fi
 }
 
 # Main execution flow
