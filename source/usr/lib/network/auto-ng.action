@@ -25,8 +25,11 @@ if [[ "$action" == "DISCONNECT" && "$MODE" == "once" ]]; then
 	trap "execute_halt_script" EXIT
 fi
 
+# LOST/REESTABLISHED are handled by removing/reobtaining an IP address
+# for reasons exactly unknown but clearly needed through observations.
+
 case $action in
-	CONNECT)
+	CONNECT|REESTABLISHED)
 	if [[ -z $profile ]]; then
 		if [[ -x "$PROFILE_DIR/interfaces/$interface" ]]; then
 			source "$PROFILE_DIR/interfaces/$interface"
@@ -38,34 +41,34 @@ case $action in
 	DhcpcdOptions+=" -K"
 	ip_set || exit 1
 
-	# JP: sandbox the eval
-	if ! ( eval $ExecUpPost ); then
-		# Failing ExecUpPost will take the connection down
-		execute_halt_script
-		exit 1
+	if [[ "$action" == CONNECT ]]; then
+		# JP: sandbox the eval
+		if ! ( eval $ExecUpPost ); then
+			# Failing ExecUpPost will take the connection down
+			execute_halt_script
+			exit 1
+		fi
 	fi
 	;;
 
-	DISCONNECT)
+	LOST|DISCONNECT)
 	if [[ -z $profile ]]; then
 		dhcpcd -k "$interface"
 		exit $?
 	fi
 
-	# JP: sandbox the eval
-	if ! ( eval $ExecDownPre ); then
-		# Failing ExecDownPre should prevent us from taking the connection fully down
-		unset HALT_SCRIPT
-		exit 1
+	if [[ "$action" == DISCONNECT ]]; then
+		# JP: sandbox the eval
+		if ! ( eval $ExecDownPre ); then
+			# Failing ExecDownPre should prevent us from taking the connection fully down
+			unset HALT_SCRIPT
+			exit 1
+		fi
 	fi
 
 	ip_unset
 	;;
 
-	LOST|REESTABLISHED)
-	# Not handled.
-	exit 0
-	;;
 	*)
 	# ???
 	exit 1
