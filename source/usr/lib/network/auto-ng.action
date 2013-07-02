@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Primary debug hook
+[[ -e "/tmp/.netctl-auto-ng-debug" ]] && { QUIET=0; NETCTL_DEBUG=1; exec >/tmp/.netctl-auto-ng-action-log 2>&1; }
+
 . /usr/lib/network/globals
 . "$SUBR_DIR/ip"
 
@@ -7,6 +10,8 @@ interface="$1"
 ssid="$2"
 profile="$3"
 action="$4"
+
+report_debug "[netctl-auto-ng action script] interface='$interface' ssid='$ssid' profile='$profile' action='$action'"
 
 # Is it possible that we don't get a profile?!
 [[ "$profile" ]] && load_profile "$profile"
