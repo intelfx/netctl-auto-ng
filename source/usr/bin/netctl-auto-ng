@@ -104,7 +104,7 @@ function outer_routine() {
 
 	systemd_run "$SD_ACTION"
 
-	if ! (( QUIET )); then
+	if ! (( QUIET )) && [[ -t 1 ]]; then
 		report_notice "Done \"$SD_ACTION\" for interface \"$INTERFACE\". Current state:"
 		systemd_run status -n0
 	fi
