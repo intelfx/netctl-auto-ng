@@ -94,7 +94,7 @@ The following meta-commands are understood:
 
 *suspend*::
 	Technically same as *--running halt*, but the state of the interface will
-	be `*suspended*\', not `*halted*'.
+	be `*suspended*\', not `*halted*\'.
 	+
 	This command is executed upon start of `netctl-auto-ng-suspend.service'
 	systemd unit for each interface.
