@@ -11,7 +11,7 @@ ExecStop=/usr/lib/network/auto-ng halt %i
 ExecReload=/usr/lib/network/auto-ng reconfigure %i
 Type=forking
 PIDFile=/run/wpa_actiond_%i.pid
-TimeoutStopSec=10s
+KillMode=none
 
 [Install]
 WantedBy=multi-user.target
