@@ -302,8 +302,8 @@ function stop() {
 		wpa_data["$key"]="$value"
 	done < <(wpa_call "$INTERFACE" status)
 
+	pkill -F "$ACTIOND_PIDFILE"
 	wpa_stop "$INTERFACE"
-	timeout_wait 1 '[[ ! -e "$ACTIOND_PIDFILE" ]]' || kill $(< "$ACTIOND_PIDFILE" )
 	bring_interface_down_with_rfkill "$INTERFACE"
 }
 
