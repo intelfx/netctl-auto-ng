@@ -254,7 +254,7 @@ bring_interface_down_with_rfkill() {
 	bring_interface_down "$@" || return "$?"
 
 	if [[ $RFKill ]]; then
-		disable_rf "$interface" "$RFKill"
+		rf_disable "$interface" "$RFKill"
 	fi
 }
 
@@ -339,7 +339,7 @@ function start() {
 	: ${TimeoutWPA:=15}
 
 	if [[ $RFKill ]]; then
-		if ! enable_rf "$INTERFACE" "$RFKill"; then
+		if ! rf_enable "$INTERFACE" "$RFKill"; then
 			quit 3 "Could not enable RF on interface '$INTERFACE'"
 		fi
 	fi
