@@ -339,9 +339,14 @@ function start() {
 	: ${TimeoutWPA:=15}
 
 	if [[ $RFKill ]]; then
+		# Workaround for netctl 1.4...
+		local path
+		path=$(rf_get_path "$INTERFACE" "$RFKill") || quit 1 "Could not get rfkill path on interface '$INTERFACE'"
 		if ! rf_enable "$INTERFACE" "$RFKill"; then
 			quit 3 "Could not enable RF on interface '$INTERFACE'"
 		fi
+
+		unset path
 	fi
 
 	# Kill any lingering WPA supplicants
